@@ -96,16 +96,31 @@ func SeedData(ctx context.Context) error {
 
 		// Generate production unit readings (3 units per day)
 		units := []string{"CDU-1", "CDU-2", "CDU-3"}
-		var actualOutput float64
-		for _, unit := range units {
+		forcedShortfall := daysAgo == 5 || daysAgo == 2 // 3rd and 6th days in descending order: daysAgo=5 and 2
+		for idx, unit := range units {
 			crudProcessed := totalBarrels / 3.0
+			if forcedShortfall {
+				outputLitres := 21000000.0 / float64(len(units))
+				pur := models.ProductionUnitReading{
+					ID:                    uuid.New(),
+					RecordedAt:            startOfDay.Add(time.Duration(6+idx*2) * time.Hour),
+					UnitName:              unit,
+					CrudeProcessedBarrels: crudProcessed,
+					ProductOutputLitres:   outputLitres,
+					YieldPercentage:       60.0,
+					Status:                "RUNNING",
+				}
+				if err := repo.InsertProductionUnitReading(ctx, pur); err != nil {
+					return fmt.Errorf("insert production reading: %w", err)
+				}
+				continue
+			}
+
 			yieldPct := 68.0 + rand.Float64()*8.0 // 68-76%
 			outputLitres := crudProcessed * 158.987 * (yieldPct / 100.0)
-			actualOutput += outputLitres
-
 			pur := models.ProductionUnitReading{
 				ID:                    uuid.New(),
-				RecordedAt:            startOfDay.Add(time.Duration(6+rand.Intn(8)) * time.Hour),
+				RecordedAt:            startOfDay.Add(time.Duration(6+idx*2) * time.Hour),
 				UnitName:              unit,
 				CrudeProcessedBarrels: crudProcessed,
 				ProductOutputLitres:   outputLitres,
