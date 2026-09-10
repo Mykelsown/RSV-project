@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"rsv-server/db"
+	"rsv-server/engine"
 	"rsv-server/handlers"
 
 	"github.com/go-chi/chi/v5"
@@ -55,8 +57,9 @@ func startScheduler() {
 		<-timer.C
 
 		log.Println("Running daily reconciliation...")
-		// Reconciliation will be triggered by the scheduler
-		// For now, log that it would run
-		log.Println("Daily reconciliation scheduled at 23:59 UTC")
+		today := time.Date(time.Now().UTC().Year(), time.Now().UTC().Month(), time.Now().UTC().Day(), 0, 0, 0, 0, time.UTC)
+		if _, err := engine.RunReconciliation(context.Background(), today); err != nil {
+			log.Printf("Daily reconciliation failed: %v", err)
+		}
 	}
 }
