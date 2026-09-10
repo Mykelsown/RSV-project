@@ -1,0 +1,17 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: rsv_postgres
+    environment:
+      POSTGRES_DB: rsv_db
+      POSTGRES_USER: rsv_user
+      POSTGRES_PASSWORD: rsv_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - rsv_pgdata:/var/lib/postgresql/data
+
+volumes:
+  rsv_pgdata:
