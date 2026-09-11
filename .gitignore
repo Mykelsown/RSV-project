@@ -1,0 +1,16 @@
+# Local environment and secrets
+.env
+**/.env
+
+# Node / frontend
+node_modules/
+client/node_modules/
+client/dist/
+
+# Build output
+server/bin/
+server/.cache/
+
+# OS files
+.DS_Store
+Thumbs.db
