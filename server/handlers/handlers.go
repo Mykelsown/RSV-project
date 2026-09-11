@@ -14,9 +14,11 @@ import (
 
 	"rsv-server/auth"
 	"rsv-server/engine"
+	"rsv-server/integration"
 	"rsv-server/models"
 	"rsv-server/repo"
 	"rsv-server/seeder"
+	"rsv-server/simulation"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -41,6 +43,9 @@ func RegisterRoutes(r chi.Router) {
 		r.With(auth.RequireAuth, auth.RequireRole("operations_manager", "trading_desk")).Post("/crude-intake", handleCrudeIntake)
 		r.With(auth.RequireAuth, auth.RequireRole("operations_manager")).Post("/production-readings", handleProductionReading)
 		r.With(auth.RequireAuth, auth.RequireRole("operations_manager")).Post("/truck-loading", handleTruckLoading)
+		r.With(auth.RequireAuth).Get("/simulation/status", handleSimulationStatus)
+		r.With(auth.RequireAuth).Post("/simulation/control", handleSimulationControl)
+		r.With(auth.RequireAuth).Post("/ingest", handleIngest)
 
 		r.With(auth.RequireAuth).Get("/dashboard/today", handleDashboardToday)
 		r.With(auth.RequireAuth).Get("/reconciliations", handleGetReconciliations)
@@ -64,9 +69,9 @@ func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:5173")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-RSV-API-Key")
 
-		if r.Method == "OPTIONS" {
+		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
@@ -128,6 +133,68 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 
 func handleLogout(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, map[string]string{"status": "logged out"})
+}
+
+func handleSimulationStatus(w http.ResponseWriter, r *http.Request) {
+	if sim := simulation.Get(); sim != nil {
+		respondJSON(w, http.StatusOK, sim.Status())
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]any{"running": false, "mode": "off", "dev_mode": false, "stats": map[string]any{"events_total": 0, "crude_intake_today": 0, "production_updates_today": 0, "gantry_loads_today": 0}})
+}
+
+func handleSimulationControl(w http.ResponseWriter, r *http.Request) {
+	var payload struct {
+		Action string `json:"action"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if sim := simulation.Get(); sim != nil {
+		switch payload.Action {
+		case "pause":
+			sim.Pause()
+		case "resume":
+			sim.Resume()
+		case "close_day":
+			if _, err := sim.ForceClose(r.Context()); err != nil {
+				respondError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+		default:
+			respondError(w, http.StatusBadRequest, "unsupported action")
+			return
+		}
+		respondJSON(w, http.StatusOK, sim.Status())
+		return
+	}
+	respondError(w, http.StatusServiceUnavailable, "simulation engine not running")
+}
+
+func handleIngest(w http.ResponseWriter, r *http.Request) {
+	var payload map[string]any
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	apiKey := strings.TrimSpace(r.Header.Get("X-RSV-API-Key"))
+	if apiKey == "" {
+		apiKey = strings.TrimSpace(r.URL.Query().Get("api_key"))
+	}
+	configuredKey := strings.TrimSpace(os.Getenv("INGEST_API_KEY"))
+	if configuredKey == "" {
+		configuredKey = "rsv-live-ingest-key"
+	}
+	if apiKey == "" || apiKey != configuredKey {
+		respondError(w, http.StatusUnauthorized, "missing or invalid API key")
+		return
+	}
+	if err := integration.ProcessIngestPayload(r.Context(), payload); err != nil {
+		respondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	respondJSON(w, http.StatusAccepted, map[string]string{"status": "ingest accepted"})
 }
 
 func handleGetCurrentUser(w http.ResponseWriter, r *http.Request) {
@@ -719,13 +786,40 @@ func handleSSE(w http.ResponseWriter, r *http.Request) {
 				Status:             status,
 				Alerts:             alerts,
 			}
-
 			data, _ := json.Marshal(dash)
 			fmt.Fprintf(w, "event: dashboard_update\ndata: %s\n\n", data)
 			flusher.Flush()
-		case <-clientChan:
-			io.WriteString(w, ": keepalive\n\n")
+		case msg := <-clientChan:
+			io.WriteString(w, msg)
 			flusher.Flush()
 		}
 	}
+}
+
+func broadcastEvent(payload map[string]any) {
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return
+	}
+
+	sseMu.Lock()
+	clients := make([]chan string, 0, len(sseClients))
+	for client := range sseClients {
+		clients = append(clients, client)
+	}
+	sseMu.Unlock()
+
+	for _, client := range clients {
+		select {
+		case client <- fmt.Sprintf("event: sim_event\ndata: %s\n\n", payloadBytes):
+		default:
+		}
+	}
+}
+
+func init() {
+	simulation.SetBroadcaster(func(payload map[string]any) {
+		broadcastEvent(payload)
+	})
+	integration.RegisterDefaultSources()
 }
