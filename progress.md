@@ -77,3 +77,25 @@
 
 ### Remaining
 - (none)
+
+## Phase 4 — Live Simulation and Integration
+
+### Status: COMPLETE
+
+### Last Updated: 2026-09-11T00:00:00Z
+
+### Completed
+- Live refinery simulation engine with pause/resume and day-close controls
+- Server-side SSE event broadcasting for live operational activity
+- Data source abstraction and simulated SCADA ingestion registry
+- API-key protected ingest endpoint for live payload submission
+- Dashboard simulation status panel with event feed and control actions
+- Build verification for Go backend and React frontend after Phase 4 wiring
+
+### In Progress
+- (none)
+
+### Remaining
+- (none)
+
+### Project Status: PITCH READY
