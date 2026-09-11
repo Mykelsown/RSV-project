@@ -165,6 +165,7 @@ function DashboardPage() {
   const [reportMessage, setReportMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [simulationStatus, setSimulationStatus] = useState<SimulationStatus | null>(null)
   const [liveEvents, setLiveEvents] = useState<LiveEvent[]>([])
+  const [activityFeedCollapsed, setActivityFeedCollapsed] = useState(false)
 
   useEffect(() => { const interval = setInterval(() => setNigeriaTime(new Date()), 1000); return () => clearInterval(interval) }, [])
 
@@ -388,27 +389,89 @@ function DashboardPage() {
           </div>
         </div>
 
-        <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
-          <h2 className="text-lg font-semibold mb-3">Live Activity Feed</h2>
-          <div className="space-y-2">
-            {liveEvents.length === 0 ? (
-              <div className="text-slate-500 text-sm">Waiting for live sensor activity...</div>
-            ) : (
-              liveEvents.map((event, index) => (
-                <div key={`${event.type}-${event.timestamp}-${index}`} className="rounded-lg bg-slate-900 border border-slate-700 p-3 text-sm text-slate-200">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="font-semibold uppercase text-cyan-300">{event.type}</span>
-                    <span className="text-xs text-slate-400">{new Date(event.timestamp).toLocaleTimeString('en-NG', { timeZone: 'Africa/Lagos', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}</span>
+        <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+          <button
+            onClick={() => setActivityFeedCollapsed((prev) => !prev)}
+            className="w-full px-4 py-3 flex items-center justify-between hover:bg-slate-700/50 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+              <span className="text-base font-semibold">Live Activity Feed</span>
+              {liveEvents.length > 0 && (
+                <span className="rounded-full bg-cyan-600 px-2 py-0.5 text-xs font-bold text-white">
+                  {liveEvents.length}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              {activityFeedCollapsed && liveEvents.length > 0 && (
+                <span className="text-xs text-slate-400 truncate max-w-xs">
+                  {liveEvents[0].type === 'crude_intake'
+                    ? `${liveEvents[0].data.tanker_id} — ${liveEvents[0].data.volume_barrels ? Math.round(Number(liveEvents[0].data.volume_barrels)).toLocaleString() : '—'} bbls`
+                    : liveEvents[0].type === 'gantry_load'
+                    ? `${liveEvents[0].data.distributor_name} — ${liveEvents[0].data.product_type}`
+                    : `Production update — ${liveEvents[0].data.combined_output_litres ? Math.round(Number(liveEvents[0].data.combined_output_litres)).toLocaleString() : '—'} L`}
+                </span>
+              )}
+              {activityFeedCollapsed && liveEvents.length === 0 && (
+                <span className="text-xs text-slate-500">Waiting for live data...</span>
+              )}
+              <svg
+                className={`w-4 h-4 text-slate-400 transition-transform ${activityFeedCollapsed ? '' : 'rotate-180'}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+          </button>
+
+          {!activityFeedCollapsed && (
+            <div className="px-4 pb-4 space-y-2 max-h-80 overflow-y-auto">
+              {liveEvents.length === 0 ? (
+                <div className="text-slate-500 text-sm py-4 text-center">Waiting for live sensor activity...</div>
+              ) : (
+                liveEvents.map((event, index) => (
+                  <div
+                    key={`${event.type}-${event.timestamp}-${index}`}
+                    className={`rounded-lg border p-3 text-sm ${
+                      event.type === 'crude_intake'
+                        ? 'bg-cyan-900/20 border-cyan-700/40'
+                        : event.type === 'gantry_load'
+                        ? 'bg-amber-900/20 border-amber-700/40'
+                        : 'bg-slate-900 border-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                          event.type === 'crude_intake' ? 'bg-cyan-400' :
+                          event.type === 'gantry_load' ? 'bg-amber-400' : 'bg-slate-400'
+                        }`} />
+                        <span className="font-medium text-slate-200">
+                          {event.type === 'crude_intake'
+                            ? `Tanker ${event.data.tanker_id} arrived — ${event.data.volume_barrels ? Math.round(Number(event.data.volume_barrels)).toLocaleString() : '—'} bbls of ${event.data.crude_type} from ${event.data.source_country}`
+                            : event.type === 'gantry_load'
+                            ? `${event.data.distributor_name} loaded ${event.data.volume_litres ? Math.round(Number(event.data.volume_litres)).toLocaleString() : '—'}L of ${event.data.product_type} at ${event.data.gantry_id}`
+                            : `Production update — ${event.data.combined_output_litres ? Math.round(Number(event.data.combined_output_litres)).toLocaleString() : '—'}L total output so far today`}
+                        </span>
+                      </div>
+                      <span className="text-xs text-slate-500 flex-shrink-0">
+                        {new Date(event.timestamp).toLocaleTimeString('en-NG', {
+                          timeZone: 'Africa/Lagos',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          second: '2-digit',
+                          hour12: true,
+                        })}
+                      </span>
+                    </div>
                   </div>
-                  <div className="mt-2 text-slate-300">
-                    {Object.entries(event.data).map(([key, value]) => (
-                      <div key={key}><span className="text-slate-400">{key.replaceAll('_', ' ')}:</span> {String(value)}</div>
-                    ))}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+                ))
+              )}
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
