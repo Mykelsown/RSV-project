@@ -78,7 +78,8 @@ func Start(ctx context.Context) (*Engine, error) {
 		mu.Unlock()
 		return instance, nil
 	}
-	instance = &Engine{ctx: ctx, mode: mode, devMode: devMode, running: true, lastReset: time.Now().UTC()}
+	simCtx, simCancel := context.WithCancel(ctx)
+	instance = &Engine{ctx: simCtx, cancel: simCancel, mode: mode, devMode: devMode, running: true, lastReset: time.Now().UTC()}
 	mu.Unlock()
 
 	if recs, err := repo.GetAllReconciliations(ctx, 1); err == nil && len(recs) > 0 {
@@ -195,10 +196,6 @@ func (e *Engine) tickCrudeIntake() {
 	}
 
 	recordedAt := time.Now().UTC()
-	startOfDay := time.Date(recordedAt.Year(), recordedAt.Month(), recordedAt.Day(), 0, 0, 0, 0, time.UTC)
-	if existing, err := repo.ReconciliationExists(e.ctx, startOfDay); err == nil && existing {
-		return
-	}
 
 	ci := models.CrudeIntake{
 		ID:                  uuid.New(),
@@ -251,9 +248,6 @@ func (e *Engine) tickProductionAndGantry() {
 
 	now := time.Now().UTC()
 	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-	if existing, err := repo.ReconciliationExists(e.ctx, startOfDay); err == nil && existing {
-		return
-	}
 
 	crudeTotal, err := repo.GetTodayCrudeIntakeTotal(e.ctx, startOfDay)
 	if err != nil {
