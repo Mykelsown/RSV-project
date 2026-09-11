@@ -247,6 +247,7 @@ function DashboardPage() {
     eventSource.addEventListener('sim_event', (event) => {
       const payload = JSON.parse(event.data) as LiveEvent
       setLiveEvents((prev) => [payload, ...prev].slice(0, 50))
+      fetchDashboard()
     })
     eventSource.onerror = () => setSseConnected(false)
     return () => eventSource.close()
