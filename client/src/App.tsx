@@ -191,12 +191,13 @@ function DashboardPage() {
 
   const saveNote = async (date: string, notes: string) => {
     if (!token) return
-    await fetch(`${API_BASE}/reconciliations/${date}/notes`, {
+    const cleanDate = date.slice(0, 10)
+    await fetch(`${API_BASE}/reconciliations/${cleanDate}/notes`, {
       method: 'PATCH',
       headers: { ...getAuthHeaders(token), 'Content-Type': 'application/json' },
       body: JSON.stringify({ notes }),
     })
-    setNoteOpen((prev) => ({ ...prev, [date]: false }))
+    setNoteOpen((prev) => ({ ...prev, [cleanDate]: false }))
     fetchReconciliations()
   }
 
@@ -310,31 +311,34 @@ function DashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {reconciliations.map((rec) => (
-                    <tr key={rec.id} className="border-b border-slate-700/50 hover:bg-slate-700/30">
-                      <td className="py-3 px-2">{formatDate(rec.reconciliation_date)}</td>
-                      <td className="py-3 px-2 text-right font-mono">{formatNumber(rec.crude_intake_total_barrels)}</td>
-                      <td className="py-3 px-2 text-right font-mono">{formatNumber(rec.expected_output_litres)}</td>
-                      <td className="py-3 px-2 text-right font-mono">{formatNumber(rec.actual_output_litres)}</td>
-                      <td className="py-3 px-2 text-right font-mono">{rec.trucks_loaded}</td>
-                      <td className="py-3 px-2 text-right font-mono"><span className={getFulfillmentColor(rec.fulfillment_percentage)}>{rec.fulfillment_percentage.toFixed(1)}%</span></td>
-                      <td className="py-3 px-2 text-center"><span className={`px-2 py-1 rounded text-xs font-bold text-white ${getStatusColor(rec.status)}`}>{rec.status}</span></td>
-                      <td className="py-3 px-2 text-center">
-                        {(user?.role === 'operations_manager' || user?.role === 'executive') && (
-                          <div className="space-y-2">
-                            <button onClick={() => { setNoteOpen((prev) => ({ ...prev, [rec.reconciliation_date]: !prev[rec.reconciliation_date] })); if (!noteDrafts[rec.reconciliation_date]) setNoteDrafts((prev) => ({ ...prev, [rec.reconciliation_date]: rec.notes || '' })) }} className="bg-slate-700 hover:bg-slate-600 text-xs px-2 py-1 rounded">Add Note</button>
-                            {noteOpen[rec.reconciliation_date] && (
-                              <div className="space-y-2 text-left">
-                                <textarea value={noteDrafts[rec.reconciliation_date] ?? rec.notes ?? ''} onChange={(e) => setNoteDrafts((prev) => ({ ...prev, [rec.reconciliation_date]: e.target.value }))} className="w-full rounded border border-slate-600 bg-slate-900 p-2 text-xs text-slate-200" rows={3} />
-                                <button onClick={() => saveNote(rec.reconciliation_date, noteDrafts[rec.reconciliation_date] ?? '')} className="bg-cyan-600 hover:bg-cyan-500 px-2 py-1 rounded text-xs">Save</button>
-                              </div>
-                            )}
-                            {rec.notes && !noteOpen[rec.reconciliation_date] && <div className="text-left text-xs text-slate-300 bg-slate-900 rounded p-2">{rec.notes}</div>}
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                  {reconciliations.map((rec) => {
+                    const cleanDate = rec.reconciliation_date.slice(0, 10)
+                    return (
+                      <tr key={rec.id} className="border-b border-slate-700/50 hover:bg-slate-700/30">
+                        <td className="py-3 px-2">{formatDate(rec.reconciliation_date)}</td>
+                        <td className="py-3 px-2 text-right font-mono">{formatNumber(rec.crude_intake_total_barrels)}</td>
+                        <td className="py-3 px-2 text-right font-mono">{formatNumber(rec.expected_output_litres)}</td>
+                        <td className="py-3 px-2 text-right font-mono">{formatNumber(rec.actual_output_litres)}</td>
+                        <td className="py-3 px-2 text-right font-mono">{rec.trucks_loaded}</td>
+                        <td className="py-3 px-2 text-right font-mono"><span className={getFulfillmentColor(rec.fulfillment_percentage)}>{rec.fulfillment_percentage.toFixed(1)}%</span></td>
+                        <td className="py-3 px-2 text-center"><span className={`px-2 py-1 rounded text-xs font-bold text-white ${getStatusColor(rec.status)}`}>{rec.status}</span></td>
+                        <td className="py-3 px-2 text-center">
+                          {(user?.role === 'operations_manager' || user?.role === 'executive') && (
+                            <div className="space-y-2">
+                              <button onClick={() => { setNoteOpen((prev) => ({ ...prev, [cleanDate]: !prev[cleanDate] })); if (!noteDrafts[cleanDate]) setNoteDrafts((prev) => ({ ...prev, [cleanDate]: rec.notes || '' })) }} className="bg-slate-700 hover:bg-slate-600 text-xs px-2 py-1 rounded">Add Note</button>
+                              {noteOpen[cleanDate] && (
+                                <div className="space-y-2 text-left">
+                                  <textarea value={noteDrafts[cleanDate] ?? rec.notes ?? ''} onChange={(e) => setNoteDrafts((prev) => ({ ...prev, [cleanDate]: e.target.value }))} className="w-full rounded border border-slate-600 bg-slate-900 p-2 text-xs text-slate-200" rows={3} />
+                                  <button onClick={() => saveNote(rec.reconciliation_date, noteDrafts[cleanDate] ?? '')} className="bg-cyan-600 hover:bg-cyan-500 px-2 py-1 rounded text-xs">Save</button>
+                                </div>
+                              )}
+                              {rec.notes && !noteOpen[cleanDate] && <div className="text-left text-xs text-slate-300 bg-slate-900 rounded p-2">{rec.notes}</div>}
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
