@@ -11,6 +11,7 @@ import (
 	"rsv-server/db"
 	"rsv-server/engine"
 	"rsv-server/handlers"
+	"rsv-server/seeder"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/joho/godotenv"
@@ -27,6 +28,10 @@ func main() {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 	defer db.Close()
+
+	if err := seeder.SeedUsers(context.Background()); err != nil {
+		log.Printf("User seeder failed: %v", err)
+	}
 
 	// Start daily reconciliation scheduler
 	go startScheduler()
