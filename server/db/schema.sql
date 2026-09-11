@@ -88,6 +88,8 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- Immutable ledger trigger: prevent UPDATE and DELETE on ledger_entries
+DROP TRIGGER IF EXISTS ledger_immutable ON ledger_entries;
+
 CREATE OR REPLACE FUNCTION prevent_ledger_modification()
 RETURNS TRIGGER AS $$
 BEGIN
