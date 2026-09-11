@@ -229,6 +229,46 @@ func ReconciliationExists(ctx context.Context, date time.Time) (bool, error) {
 	return exists, err
 }
 
+func DeleteZeroReconciliationForDate(ctx context.Context, date time.Time) error {
+	start := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.UTC)
+
+	tx, err := db.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	var recID uuid.UUID
+	err = tx.QueryRow(ctx,
+		`SELECT id FROM daily_reconciliations
+		 WHERE reconciliation_date = $1
+		   AND actual_output_litres = 0
+		   AND crude_intake_total_barrels = 0`,
+		start).Scan(&recID)
+	if err != nil {
+		if err.Error() == "no rows in result set" {
+			return nil
+		}
+		return err
+	}
+
+	_, err = tx.Exec(ctx,
+		`DELETE FROM ledger_entries WHERE reconciliation_id = $1`,
+		recID)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.Exec(ctx,
+		`DELETE FROM daily_reconciliations WHERE id = $1`,
+		recID)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
+}
+
 func InsertUser(ctx context.Context, u models.User) error {
 	_, err := db.Pool.Exec(ctx,
 		`INSERT INTO users (id, email, password_hash, full_name, role, created_at, last_login_at)
