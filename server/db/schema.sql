@@ -76,6 +76,17 @@ CREATE TABLE IF NOT EXISTS alerts (
     acknowledged_at TIMESTAMPTZ
 );
 
+-- Users
+CREATE TABLE IF NOT EXISTS users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(255) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    full_name VARCHAR(255) NOT NULL,
+    role VARCHAR(50) NOT NULL CHECK (role IN ('operations_manager', 'executive', 'regulatory', 'trading_desk')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_login_at TIMESTAMPTZ
+);
+
 -- Immutable ledger trigger: prevent UPDATE and DELETE on ledger_entries
 CREATE OR REPLACE FUNCTION prevent_ledger_modification()
 RETURNS TRIGGER AS $$
