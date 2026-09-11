@@ -46,6 +46,24 @@ interface LedgerEntry {
   created_at: string
 }
 
+interface SimulationStatus {
+  running: boolean
+  mode: string
+  dev_mode: boolean
+  stats: {
+    events_total: number
+    crude_intake_today: number
+    production_updates_today: number
+    gantry_loads_today: number
+  }
+}
+
+interface LiveEvent {
+  type: string
+  timestamp: string
+  data: Record<string, unknown>
+}
+
 const getAuthHeaders = (token: string | null): Record<string, string> => {
   if (!token) return {}
   return { Authorization: `Bearer ${token}` }
@@ -145,6 +163,8 @@ function DashboardPage() {
   const [reportEnd, setReportEnd] = useState('')
   const [reportGenerating, setReportGenerating] = useState(false)
   const [reportMessage, setReportMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [simulationStatus, setSimulationStatus] = useState<SimulationStatus | null>(null)
+  const [liveEvents, setLiveEvents] = useState<LiveEvent[]>([])
 
   useEffect(() => { const interval = setInterval(() => setNigeriaTime(new Date()), 1000); return () => clearInterval(interval) }, [])
 
@@ -224,8 +244,20 @@ function DashboardPage() {
       const data = JSON.parse(event.data)
       setDashboardData(data)
     })
+    eventSource.addEventListener('sim_event', (event) => {
+      const payload = JSON.parse(event.data) as LiveEvent
+      setLiveEvents((prev) => [payload, ...prev].slice(0, 8))
+    })
     eventSource.onerror = () => setSseConnected(false)
     return () => eventSource.close()
+  }, [token])
+
+  useEffect(() => {
+    if (!token) return
+    fetch(`${API_BASE}/simulation/status`, { headers: getAuthHeaders(token) })
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => setSimulationStatus(data))
+      .catch(() => setSimulationStatus(null))
   }, [token])
 
   const acknowledgeAlert = async (id: string) => {
@@ -256,6 +288,19 @@ function DashboardPage() {
     })
     setNoteOpen((prev) => ({ ...prev, [cleanDate]: false }))
     fetchReconciliations()
+  }
+
+  const controlSimulation = async (action: 'pause' | 'resume' | 'close_day') => {
+    if (!token) return
+    const res = await fetch(`${API_BASE}/simulation/control`, {
+      method: 'POST',
+      headers: { ...getAuthHeaders(token), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action }),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      setSimulationStatus(data)
+    }
   }
 
   const generateReport = async () => {
@@ -316,11 +361,54 @@ function DashboardPage() {
     <>
       <main className="max-w-7xl mx-auto p-6 space-y-6">
         {user?.role === 'operations_manager' && (
-          <div className="flex gap-4">
+          <div className="flex flex-wrap gap-4">
             <button onClick={seedData} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors">Seed 7 Days Data</button>
             <button onClick={runReconciliation} className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium transition-colors">Run Today's Reconciliation</button>
+            <button onClick={() => controlSimulation('pause')} className="bg-amber-600 hover:bg-amber-500 text-white px-4 py-2 rounded-lg font-medium transition-colors">Pause Simulation</button>
+            <button onClick={() => controlSimulation('resume')} className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg font-medium transition-colors">Resume Simulation</button>
+            <button onClick={() => controlSimulation('close_day')} className="bg-rose-600 hover:bg-rose-500 text-white px-4 py-2 rounded-lg font-medium transition-colors">Close Day</button>
           </div>
         )}
+
+        <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div>
+              <div className="text-sm text-slate-400">Live simulation status</div>
+              <div className="text-lg font-semibold text-white">{simulationStatus ? (simulationStatus.running ? 'Active' : 'Offline') : 'Unknown'}</div>
+            </div>
+            <div className="text-sm text-slate-300">
+              Mode: <span className="font-semibold text-white">{simulationStatus?.mode || 'off'}</span> · Events: <span className="font-semibold text-white">{simulationStatus?.stats?.events_total ?? 0}</span>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-2 sm:grid-cols-3 text-sm text-slate-300">
+            <div className="rounded-lg bg-slate-900 p-3">Crude intakes: <span className="text-white font-semibold">{simulationStatus?.stats?.crude_intake_today ?? 0}</span></div>
+            <div className="rounded-lg bg-slate-900 p-3">Production updates: <span className="text-white font-semibold">{simulationStatus?.stats?.production_updates_today ?? 0}</span></div>
+            <div className="rounded-lg bg-slate-900 p-3">Gantry loads: <span className="text-white font-semibold">{simulationStatus?.stats?.gantry_loads_today ?? 0}</span></div>
+          </div>
+        </div>
+
+        <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
+          <h2 className="text-lg font-semibold mb-3">Live Activity Feed</h2>
+          <div className="space-y-2">
+            {liveEvents.length === 0 ? (
+              <div className="text-slate-500 text-sm">Waiting for live sensor activity...</div>
+            ) : (
+              liveEvents.map((event, index) => (
+                <div key={`${event.type}-${event.timestamp}-${index}`} className="rounded-lg bg-slate-900 border border-slate-700 p-3 text-sm text-slate-200">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-semibold uppercase text-cyan-300">{event.type}</span>
+                    <span className="text-xs text-slate-400">{new Date(event.timestamp).toLocaleTimeString('en-NG', { timeZone: 'Africa/Lagos', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}</span>
+                  </div>
+                  <div className="mt-2 text-slate-300">
+                    {Object.entries(event.data).map(([key, value]) => (
+                      <div key={key}><span className="text-slate-400">{key.replaceAll('_', ' ')}:</span> {String(value)}</div>
+                    ))}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <SummaryCard title="Crude Intake Today" value={dashboardData ? formatNumber(dashboardData.crude_intake_barrels) : '—'} unit="barrels" />
