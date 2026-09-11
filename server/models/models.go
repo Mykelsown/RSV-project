@@ -73,6 +73,16 @@ type Alert struct {
 	AcknowledgedAt *time.Time `json:"acknowledged_at"`
 }
 
+type User struct {
+	ID           uuid.UUID  `json:"id"`
+	Email        string     `json:"email"`
+	PasswordHash string     `json:"-"`
+	FullName     string     `json:"full_name"`
+	Role         string     `json:"role"`
+	CreatedAt    time.Time  `json:"created_at"`
+	LastLoginAt  *time.Time `json:"last_login_at"`
+}
+
 type DashboardToday struct {
 	CrudeIntakeBarrels  float64 `json:"crude_intake_barrels"`
 	ActualOutputLitres  float64 `json:"actual_output_litres"`

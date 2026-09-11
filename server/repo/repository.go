@@ -116,6 +116,22 @@ func GetAllReconciliations(ctx context.Context, limit int) ([]models.DailyReconc
 	return recs, nil
 }
 
+func UpdateReconciliationNotes(ctx context.Context, date time.Time, notes string) (*models.DailyReconciliation, error) {
+	start := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.UTC)
+
+	var r models.DailyReconciliation
+	err := db.Pool.QueryRow(ctx,
+		`UPDATE daily_reconciliations
+		 SET notes = $1
+		 WHERE reconciliation_date = $2
+		 RETURNING id, reconciliation_date, crude_intake_total_barrels, expected_output_litres, actual_output_litres, trucks_loaded, commitment_target_litres, fulfillment_percentage, status, notes, created_at`,
+		notes, start).Scan(&r.ID, &r.ReconciliationDate, &r.CrudeIntakeTotalBarrels, &r.ExpectedOutputLitres, &r.ActualOutputLitres, &r.TrucksLoaded, &r.CommitmentTargetLitres, &r.FulfillmentPercentage, &r.Status, &r.Notes, &r.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
 func GetLedgerEntries(ctx context.Context, offset, limit int) ([]models.LedgerEntry, error) {
 	rows, err := db.Pool.Query(ctx,
 		`SELECT id, entry_date, reconciliation_id, content_hash, previous_hash, created_at
@@ -209,4 +225,40 @@ func ReconciliationExists(ctx context.Context, date time.Time) (bool, error) {
 		`SELECT EXISTS(SELECT 1 FROM daily_reconciliations WHERE reconciliation_date = $1)`,
 		start).Scan(&exists)
 	return exists, err
+}
+
+func InsertUser(ctx context.Context, u models.User) error {
+	_, err := db.Pool.Exec(ctx,
+		`INSERT INTO users (id, email, password_hash, full_name, role, created_at, last_login_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		u.ID, u.Email, u.PasswordHash, u.FullName, u.Role, u.CreatedAt, u.LastLoginAt)
+	return err
+}
+
+func GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
+	var u models.User
+	err := db.Pool.QueryRow(ctx,
+		`SELECT id, email, password_hash, full_name, role, created_at, last_login_at
+		 FROM users WHERE email = $1`, email).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.FullName, &u.Role, &u.CreatedAt, &u.LastLoginAt)
+	if err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
+func GetUserByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
+	var u models.User
+	err := db.Pool.QueryRow(ctx,
+		`SELECT id, email, password_hash, full_name, role, created_at, last_login_at
+		 FROM users WHERE id = $1`, id).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.FullName, &u.Role, &u.CreatedAt, &u.LastLoginAt)
+	if err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
+func UpdateUserLastLogin(ctx context.Context, id uuid.UUID) error {
+	_, err := db.Pool.Exec(ctx,
+		`UPDATE users SET last_login_at = NOW() WHERE id = $1`, id)
+	return err
 }
