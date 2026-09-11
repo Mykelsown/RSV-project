@@ -108,5 +108,9 @@
 - fix: add SIM_MODE, SIM_DEV_MODE, and INGEST_API_KEY to environment config
 - fix: increase live activity feed buffer from 8 to 50 events
 - feat: add integration tab with data source cards and architecture documentation
+- Fixed simulation ticker blocked by ReconciliationExists guard
+- Fixed simulation engine context cancellation
+- Fixed dashboard cards not refreshing on sim_event
+- Added startup cleanup of zero-value reconciliation records
 
 ### Project Status: PITCH READY
