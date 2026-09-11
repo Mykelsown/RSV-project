@@ -49,6 +49,13 @@ func RegisterRoutes(r chi.Router) {
 		r.With(auth.RequireAuth).Get("/ledger", handleGetLedger)
 		r.With(auth.RequireAuth).Get("/alerts", handleGetAlerts)
 		r.With(auth.RequireAuth, auth.RequireRole("operations_manager", "executive")).Patch("/alerts/{id}/acknowledge", handleAcknowledgeAlert)
+		r.With(auth.RequireAuth).Get("/analytics/summary", handleAnalyticsSummary)
+		r.With(auth.RequireAuth).Get("/analytics/trend", handleAnalyticsTrend)
+		r.With(auth.RequireAuth).Get("/analytics/products", handleAnalyticsProducts)
+		r.With(auth.RequireAuth).Get("/analytics/crude-sources", handleAnalyticsCrudeSources)
+		r.With(auth.RequireAuth).Get("/analytics/distributors", handleAnalyticsDistributors)
+		r.With(auth.RequireAuth).Get("/analytics/alerts-summary", handleAnalyticsAlertsSummary)
+		r.With(auth.RequireAuth, auth.RequireRole("operations_manager", "executive")).Post("/reports/generate", handleGenerateReport)
 		r.With(auth.RequireAuth).Get("/events", handleSSE)
 	})
 }
@@ -357,6 +364,217 @@ func handleGetAlerts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respondJSON(w, http.StatusOK, alerts)
+}
+
+func handleAnalyticsSummary(w http.ResponseWriter, r *http.Request) {
+	summary, err := repo.GetAnalyticsSummary(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respondJSON(w, http.StatusOK, summary)
+}
+
+func handleAnalyticsTrend(w http.ResponseWriter, r *http.Request) {
+	value := r.URL.Query().Get("days")
+	days := 30
+	if value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed <= 0 {
+			respondError(w, http.StatusBadRequest, "days must be a positive integer")
+			return
+		}
+		days = parsed
+	}
+	if days > 90 {
+		days = 90
+	}
+
+	trend, err := repo.GetAnalyticsTrend(r.Context(), days)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respondJSON(w, http.StatusOK, trend)
+}
+
+func handleAnalyticsProducts(w http.ResponseWriter, r *http.Request) {
+	products, err := repo.GetProductBreakdown(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respondJSON(w, http.StatusOK, products)
+}
+
+func handleAnalyticsCrudeSources(w http.ResponseWriter, r *http.Request) {
+	crudeSources, err := repo.GetCrudeSourceBreakdown(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respondJSON(w, http.StatusOK, crudeSources)
+}
+
+func handleAnalyticsDistributors(w http.ResponseWriter, r *http.Request) {
+	limit := 10
+	value := r.URL.Query().Get("limit")
+	if value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed <= 0 {
+			respondError(w, http.StatusBadRequest, "limit must be a positive integer")
+			return
+		}
+		limit = parsed
+	}
+	if limit > 50 {
+		limit = 50
+	}
+
+	distributors, err := repo.GetDistributorSummary(r.Context(), limit)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respondJSON(w, http.StatusOK, distributors)
+}
+
+func handleAnalyticsAlertsSummary(w http.ResponseWriter, r *http.Request) {
+	summary, err := repo.GetAlertsSummary(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respondJSON(w, http.StatusOK, summary)
+}
+
+func handleGenerateReport(w http.ResponseWriter, r *http.Request) {
+	claims, ok := r.Context().Value("auth_claims").(*auth.Claims)
+	if !ok || claims == nil {
+		respondError(w, http.StatusUnauthorized, "user not authenticated")
+		return
+	}
+
+	var payload models.ReportGenerationRequest
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if payload.ReportType == "" {
+		payload.ReportType = "custom"
+	}
+	if payload.Format == "" {
+		payload.Format = "json"
+	}
+	if payload.ReportType != "weekly" && payload.ReportType != "monthly" && payload.ReportType != "custom" {
+		respondError(w, http.StatusBadRequest, "report_type must be weekly, monthly, or custom")
+		return
+	}
+	if payload.Format != "json" && payload.Format != "csv" {
+		respondError(w, http.StatusBadRequest, "format must be json or csv")
+		return
+	}
+
+	startDate, err := time.Parse("2006-01-02", payload.StartDate)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid start_date format; use YYYY-MM-DD")
+		return
+	}
+	endDate, err := time.Parse("2006-01-02", payload.EndDate)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid end_date format; use YYYY-MM-DD")
+		return
+	}
+
+	if startDate.After(endDate) {
+		respondError(w, http.StatusBadRequest, "start_date must be before end_date")
+		return
+	}
+
+	report, err := repo.GenerateReportData(r.Context(), startDate, endDate)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	report.Metadata = models.ReportMetadata{
+		GeneratedAt: time.Now().UTC(),
+		GeneratedBy: claims.Email,
+		ReportType:  payload.ReportType,
+		StartDate:   payload.StartDate,
+		EndDate:     payload.EndDate,
+	}
+
+	if payload.Format == "json" {
+		filename := fmt.Sprintf("rsv-report-%s-to-%s.json", startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
+		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(report)
+		return
+	}
+
+	csvRows := [][]string{
+		{"key", "value"},
+		{"generated_at", report.Metadata.GeneratedAt.Format(time.RFC3339)},
+		{"generated_by", report.Metadata.GeneratedBy},
+		{"report_type", report.Metadata.ReportType},
+		{"start_date", report.Metadata.StartDate},
+		{"end_date", report.Metadata.EndDate},
+		{},
+		{"key", "value"},
+		{"total_days", strconv.Itoa(report.PeriodSummary.TotalDays)},
+		{"fulfilled_days", strconv.Itoa(report.PeriodSummary.FulfilledDays)},
+		{"partial_days", strconv.Itoa(report.PeriodSummary.PartialDays)},
+		{"shortfall_days", strconv.Itoa(report.PeriodSummary.ShortfallDays)},
+		{"avg_fulfillment_pct", fmt.Sprintf("%.2f", report.PeriodSummary.AvgFulfillmentPct)},
+		{"total_crude_intake_barrels", fmt.Sprintf("%.2f", report.PeriodSummary.TotalCrudeIntakeBarrels)},
+		{"total_actual_output_litres", fmt.Sprintf("%.2f", report.PeriodSummary.TotalActualOutputLitres)},
+		{"total_trucks_loaded", strconv.Itoa(report.PeriodSummary.TotalTrucksLoaded)},
+		{},
+		{"date", "fulfillment_percentage", "actual_output_litres", "expected_output_litres", "crude_intake_total_barrels", "trucks_loaded", "status", "notes"},
+	}
+	for _, rec := range report.DailyRecords {
+		notes := ""
+		if rec.Notes != nil {
+			notes = *rec.Notes
+		}
+		csvRows = append(csvRows, []string{
+			rec.Date.Format("2006-01-02"),
+			fmt.Sprintf("%.2f", rec.FulfillmentPercentage),
+			fmt.Sprintf("%.2f", rec.ActualOutputLitres),
+			fmt.Sprintf("%.2f", rec.ExpectedOutputLitres),
+			fmt.Sprintf("%.2f", rec.CrudeIntakeTotalBarrels),
+			strconv.Itoa(rec.TrucksLoaded),
+			rec.Status,
+			notes,
+		})
+	}
+	csvRows = append(csvRows, []string{}, []string{"ledger_entry_count", strconv.Itoa(report.LedgerVerification.LedgerEntryCount)}, []string{"hash_chain_valid", strconv.FormatBool(report.LedgerVerification.HashChainValid)})
+
+	csvContent := ""
+	for i, row := range csvRows {
+		if len(row) == 0 {
+			if i > 0 {
+				csvContent += "\n"
+			}
+			continue
+		}
+		for j, cell := range row {
+			if j > 0 {
+				csvContent += ","
+			}
+			csvContent += fmt.Sprintf("\"%s\"", strings.ReplaceAll(cell, "\"", "\"\""))
+		}
+		csvContent += "\n"
+	}
+
+	filename := fmt.Sprintf("rsv-report-%s-to-%s.csv", startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
+	w.Header().Set("Content-Type", "text/csv")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(csvContent))
 }
 
 // Acknowledge Alert
