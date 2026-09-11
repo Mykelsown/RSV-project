@@ -99,3 +99,14 @@
 - (none)
 
 ### Project Status: PITCH READY
+
+## Patch Session
+
+### Status: COMPLETE
+
+### Applied fixes
+- fix: add SIM_MODE, SIM_DEV_MODE, and INGEST_API_KEY to environment config
+- fix: increase live activity feed buffer from 8 to 50 events
+- feat: add integration tab with data source cards and architecture documentation
+
+### Project Status: PITCH READY
