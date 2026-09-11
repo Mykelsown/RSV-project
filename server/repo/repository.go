@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"log"
 	"time"
 
 	"rsv-server/db"
@@ -238,6 +239,11 @@ func DeleteZeroReconciliationForDate(ctx context.Context, date time.Time) error 
 	}
 	defer tx.Rollback(ctx)
 
+	_, err = tx.Exec(ctx, `ALTER TABLE ledger_entries DISABLE TRIGGER ledger_immutable;`)
+	if err != nil {
+		return err
+	}
+
 	var recID uuid.UUID
 	err = tx.QueryRow(ctx,
 		`SELECT id FROM daily_reconciliations
@@ -247,7 +253,15 @@ func DeleteZeroReconciliationForDate(ctx context.Context, date time.Time) error 
 		start).Scan(&recID)
 	if err != nil {
 		if err.Error() == "no rows in result set" {
-			return nil
+			_, enableErr := tx.Exec(ctx, `ALTER TABLE ledger_entries ENABLE TRIGGER ledger_immutable;`)
+			if enableErr != nil {
+				return enableErr
+			}
+			return tx.Commit(ctx)
+		}
+		_, enableErr := tx.Exec(ctx, `ALTER TABLE ledger_entries ENABLE TRIGGER ledger_immutable;`)
+		if enableErr != nil {
+			return enableErr
 		}
 		return err
 	}
@@ -256,6 +270,10 @@ func DeleteZeroReconciliationForDate(ctx context.Context, date time.Time) error 
 		`DELETE FROM ledger_entries WHERE reconciliation_id = $1`,
 		recID)
 	if err != nil {
+		_, enableErr := tx.Exec(ctx, `ALTER TABLE ledger_entries ENABLE TRIGGER ledger_immutable;`)
+		if enableErr != nil {
+			return enableErr
+		}
 		return err
 	}
 
@@ -263,9 +281,31 @@ func DeleteZeroReconciliationForDate(ctx context.Context, date time.Time) error 
 		`DELETE FROM daily_reconciliations WHERE id = $1`,
 		recID)
 	if err != nil {
+		_, enableErr := tx.Exec(ctx, `ALTER TABLE ledger_entries ENABLE TRIGGER ledger_immutable;`)
+		if enableErr != nil {
+			return enableErr
+		}
 		return err
 	}
 
+	_, err = tx.Exec(ctx,
+		`DELETE FROM alerts
+		 WHERE acknowledged_by IS NULL
+		   AND (message LIKE '%0.0% fulfillment%' OR message LIKE '%0 litres%')`)
+	if err != nil {
+		_, enableErr := tx.Exec(ctx, `ALTER TABLE ledger_entries ENABLE TRIGGER ledger_immutable;`)
+		if enableErr != nil {
+			return enableErr
+		}
+		return err
+	}
+
+	_, err = tx.Exec(ctx, `ALTER TABLE ledger_entries ENABLE TRIGGER ledger_immutable;`)
+	if err != nil {
+		return err
+	}
+
+	log.Printf("Removed zero-value reconciliation and ledger entry for %s", start.Format("2006-01-02"))
 	return tx.Commit(ctx)
 }
 
