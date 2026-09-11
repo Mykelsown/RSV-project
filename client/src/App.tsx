@@ -150,7 +150,7 @@ function DashboardPage() {
   const [ledgerExpanded, setLedgerExpanded] = useState(false)
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({})
   const [noteOpen, setNoteOpen] = useState<Record<string, boolean>>({})
-  const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'distribution' | 'reports'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'distribution' | 'reports' | 'integration'>('overview')
   const [analyticsSummary, setAnalyticsSummary] = useState<any>(null)
   const [trendData, setTrendData] = useState<any[]>([])
   const [alertsSummary, setAlertsSummary] = useState<any>(null)
@@ -246,7 +246,7 @@ function DashboardPage() {
     })
     eventSource.addEventListener('sim_event', (event) => {
       const payload = JSON.parse(event.data) as LiveEvent
-      setLiveEvents((prev) => [payload, ...prev].slice(0, 8))
+      setLiveEvents((prev) => [payload, ...prev].slice(0, 50))
     })
     eventSource.onerror = () => setSseConnected(false)
     return () => eventSource.close()
@@ -724,6 +724,92 @@ function DashboardPage() {
     </div>
   )
 
+  const integrationContent = (
+    <div className="max-w-7xl mx-auto p-6 space-y-6">
+      <div className="flex items-center justify-between gap-4">
+        <h2 className="text-lg font-semibold text-white">Integration & Data Sources</h2>
+        <div className="flex items-center gap-2 text-sm text-slate-300">
+          <span className="font-mono text-slate-500">server/integration/interface.go</span>
+          <span className="text-slate-400">DataSource interface</span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {[
+          {
+            title: 'Crude Terminal Sensor',
+            status: simulationStatus?.running ? 'SIMULATED' : 'OFFLINE',
+            statusClass: simulationStatus?.running ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-red-500/20 text-red-300 border border-red-500/40',
+            description: 'Monitors tanker arrivals and crude intake volumes at the Lekki terminal. In production, connects to the terminal\'s flow metering API.',
+            simInterval: 'Every 40 seconds (dev) / 4 hours (production)',
+            integration: 'Replace with terminal SCADA API endpoint. Implement DataSource interface in server/integration/.'
+          },
+          {
+            title: 'Production Unit Monitors',
+            status: simulationStatus?.running ? 'SIMULATED' : 'OFFLINE',
+            statusClass: simulationStatus?.running ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-red-500/20 text-red-300 border border-red-500/40',
+            description: 'Reads throughput and yield from CDU-1, CDU-2, and CDU-3. In production, connects to distributed control system (DCS) OPC-UA feeds.',
+            simInterval: 'Every 30 seconds (dev) / 30 minutes (production)',
+            integration: 'Replace with OPC-UA or Modbus TCP adapter. Implement DataSource interface.'
+          },
+          {
+            title: 'Gantry Loading System',
+            status: simulationStatus?.running ? 'SIMULATED' : 'OFFLINE',
+            statusClass: simulationStatus?.running ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-red-500/20 text-red-300 border border-red-500/40',
+            description: 'Captures truck loading events at all 4 gantries. In production, connects to the gantry automation controller\'s event webhook.',
+            simInterval: 'Every 30 seconds (dev) / 30 minutes (production)',
+            integration: 'Replace with gantry webhook receiver at POST /api/v1/ingest/gantry. Implement DataSource interface.'
+          },
+          {
+            title: 'ERP / Allocation System',
+            status: 'NOT CONNECTED',
+            statusClass: 'bg-red-500/20 text-red-300 border border-red-500/40',
+            description: 'Crude allocation data from the trading desk ERP. Would provide real-time cargo allocation confirmations and purchase order references.',
+            simInterval: 'N/A',
+            integration: 'Connect via SAP RFC or REST API. Implement DataSource interface and register in main.go.'
+          }
+        ].map((card) => (
+          <div key={card.title} className="rounded-xl border border-slate-700 bg-slate-800 p-6">
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <h3 className="text-base font-semibold text-white">{card.title}</h3>
+              <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide ${card.statusClass}`}>{card.status}</span>
+            </div>
+            <p className="text-sm text-slate-400 mb-4">{card.description}</p>
+            <div className="space-y-2 text-xs text-slate-500">
+              <div className="flex justify-between gap-3">
+                <span>Simulated interval</span>
+                <span className="text-slate-300 text-right">{card.simInterval}</span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span>Production integration</span>
+                <span className="text-slate-300 text-right">{card.integration}</span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="rounded-xl border border-slate-700 bg-slate-900 p-5">
+        <div className="text-xs uppercase tracking-wide text-slate-400 mb-2">ARCHITECTURE NOTE</div>
+        <p className="text-sm text-slate-300">
+          RSV uses a DataSource abstraction layer for all external integrations. Each data source implements a standard interface (server/integration/interface.go) and is registered at startup. To connect a live system, implement the interface and set SIM_MODE=off in the environment. No application code changes are required.
+        </p>
+      </div>
+
+      <div className="rounded-xl border border-slate-700 bg-slate-900 p-5">
+        <div className="text-xs uppercase tracking-wide text-slate-400 mb-2">PRODUCTION INGEST ENDPOINTS</div>
+        <p className="text-sm text-slate-300 mb-3">
+          Live sensor data is accepted at /api/v1/ingest/* endpoints using X-RSV-API-Key header authentication. These endpoints are ready to receive data from production systems.
+        </p>
+        <div className="space-y-2 font-mono text-xs text-slate-500">
+          <div className="flex items-center gap-2"><span className="text-slate-400">→</span><span>POST /api/v1/ingest/crude-intake       — Crude terminal meter readings</span></div>
+          <div className="flex items-center gap-2"><span className="text-slate-400">→</span><span>POST /api/v1/ingest/production-reading — Production unit DCS readings</span></div>
+          <div className="flex items-center gap-2"><span className="text-slate-400">→</span><span>POST /api/v1/ingest/gantry-load        — Gantry automation events</span></div>
+        </div>
+      </div>
+    </div>
+  )
+
   return (
     <div className="min-h-screen bg-slate-900 text-white">
       <header className="bg-slate-800 border-b border-slate-700 px-6 py-4">
@@ -749,10 +835,10 @@ function DashboardPage() {
 
       <div className="max-w-7xl mx-auto px-6 pt-6">
         <div className="inline-flex rounded-xl border border-slate-700 bg-slate-800 p-1">
-          {['overview', 'analytics', 'distribution', 'reports'].map((tab) => {
-            const isHidden = (tab === 'reports') && (user?.role === 'trading_desk' || user?.role === 'regulatory')
+          {['overview', 'analytics', 'distribution', 'reports', 'integration'].map((tab) => {
+            const isHidden = (tab === 'reports' || tab === 'integration') && (user?.role === 'trading_desk' || user?.role === 'regulatory')
             if (isHidden) return null
-            const label = tab === 'overview' ? 'Overview' : tab === 'analytics' ? 'Analytics' : tab === 'distribution' ? 'Crude & Distribution' : 'Reports'
+            const label = tab === 'overview' ? 'Overview' : tab === 'analytics' ? 'Analytics' : tab === 'distribution' ? 'Crude & Distribution' : tab === 'reports' ? 'Reports' : 'Integration'
             return (
               <button key={tab} onClick={() => setActiveTab(tab as any)} className={`px-4 py-2 rounded-lg text-sm font-medium ${activeTab === tab ? 'bg-cyan-600 text-white' : 'text-slate-300 hover:bg-slate-700'}`}>
                 {label}
@@ -766,6 +852,7 @@ function DashboardPage() {
       {activeTab === 'analytics' && analyticsContent}
       {activeTab === 'distribution' && distributionContent}
       {activeTab === 'reports' && reportsContent}
+      {activeTab === 'integration' && integrationContent}
     </div>
   )
 }
