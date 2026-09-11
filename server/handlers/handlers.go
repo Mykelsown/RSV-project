@@ -2,14 +2,17 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
+	"rsv-server/auth"
 	"rsv-server/engine"
 	"rsv-server/models"
 	"rsv-server/repo"
@@ -17,6 +20,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 )
 
 var (
@@ -28,20 +32,24 @@ func RegisterRoutes(r chi.Router) {
 	r.Use(corsMiddleware)
 
 	r.Route("/api/v1", func(r chi.Router) {
-		r.Post("/seed", handleSeed)
-		r.Post("/reconcile/run", handleReconcileRun)
+		r.Post("/auth/login", handleLogin)
+		r.Post("/auth/logout", handleLogout)
+		r.With(auth.RequireAuth).Get("/auth/me", handleGetCurrentUser)
 
-		r.Post("/crude-intake", handleCrudeIntake)
-		r.Post("/production-readings", handleProductionReading)
-		r.Post("/truck-loading", handleTruckLoading)
+		r.With(auth.RequireAuth, auth.RequireRole("operations_manager")).Post("/seed", handleSeed)
+		r.With(auth.RequireAuth, auth.RequireRole("operations_manager")).Post("/reconcile/run", handleReconcileRun)
+		r.With(auth.RequireAuth, auth.RequireRole("operations_manager", "trading_desk")).Post("/crude-intake", handleCrudeIntake)
+		r.With(auth.RequireAuth, auth.RequireRole("operations_manager")).Post("/production-readings", handleProductionReading)
+		r.With(auth.RequireAuth, auth.RequireRole("operations_manager")).Post("/truck-loading", handleTruckLoading)
 
-		r.Get("/dashboard/today", handleDashboardToday)
-		r.Get("/reconciliations", handleGetReconciliations)
-		r.Get("/reconciliations/{date}", handleGetReconciliationByDate)
-		r.Get("/ledger", handleGetLedger)
-		r.Get("/alerts", handleGetAlerts)
-		r.Patch("/alerts/{id}/acknowledge", handleAcknowledgeAlert)
-		r.Get("/events", handleSSE)
+		r.With(auth.RequireAuth).Get("/dashboard/today", handleDashboardToday)
+		r.With(auth.RequireAuth).Get("/reconciliations", handleGetReconciliations)
+		r.With(auth.RequireAuth).Get("/reconciliations/{date}", handleGetReconciliationByDate)
+		r.With(auth.RequireAuth, auth.RequireRole("operations_manager", "executive")).Patch("/reconciliations/{date}/notes", handleUpdateReconciliationNotes)
+		r.With(auth.RequireAuth).Get("/ledger", handleGetLedger)
+		r.With(auth.RequireAuth).Get("/alerts", handleGetAlerts)
+		r.With(auth.RequireAuth, auth.RequireRole("operations_manager", "executive")).Patch("/alerts/{id}/acknowledge", handleAcknowledgeAlert)
+		r.With(auth.RequireAuth).Get("/events", handleSSE)
 	})
 }
 
@@ -49,7 +57,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:5173")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
@@ -68,6 +76,74 @@ func respondJSON(w http.ResponseWriter, status int, data interface{}) {
 
 func respondError(w http.ResponseWriter, status int, msg string) {
 	respondJSON(w, status, map[string]string{"error": msg})
+}
+
+func handleLogin(w http.ResponseWriter, r *http.Request) {
+	var payload struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	user, err := repo.GetUserByEmail(r.Context(), payload.Email)
+	if err != nil {
+		respondError(w, http.StatusUnauthorized, "invalid email or password")
+		return
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(payload.Password)); err != nil {
+		respondError(w, http.StatusUnauthorized, "invalid email or password")
+		return
+	}
+
+	token, err := auth.GenerateToken(user.ID, user.Email, user.Role)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to generate token")
+		return
+	}
+	if err := repo.UpdateUserLastLogin(r.Context(), user.ID); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to update login time")
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"token": token,
+		"user": map[string]interface{}{
+			"id":        user.ID,
+			"email":     user.Email,
+			"full_name": user.FullName,
+			"role":      user.Role,
+		},
+	})
+}
+
+func handleLogout(w http.ResponseWriter, r *http.Request) {
+	respondJSON(w, http.StatusOK, map[string]string{"status": "logged out"})
+}
+
+func handleGetCurrentUser(w http.ResponseWriter, r *http.Request) {
+	claims, ok := r.Context().Value("auth_claims").(*auth.Claims)
+	if !ok || claims == nil {
+		respondError(w, http.StatusUnauthorized, "user not authenticated")
+		return
+	}
+
+	user, err := repo.GetUserByID(r.Context(), claims.UserID)
+	if err != nil {
+		respondError(w, http.StatusNotFound, "user not found")
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"id":        user.ID,
+		"email":     user.Email,
+		"full_name": user.FullName,
+		"role":      user.Role,
+		"created_at": user.CreatedAt,
+		"last_login_at": user.LastLoginAt,
+	})
 }
 
 // Seed endpoint
@@ -225,6 +301,34 @@ func handleGetReconciliationByDate(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, rec)
 }
 
+func handleUpdateReconciliationNotes(w http.ResponseWriter, r *http.Request) {
+	dateStr := chi.URLParam(r, "date")
+	date, err := time.Parse("2006-01-02", dateStr)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid date format, use YYYY-MM-DD")
+		return
+	}
+
+	var payload struct {
+		Notes string `json:"notes"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	rec, err := repo.UpdateReconciliationNotes(r.Context(), date, payload.Notes)
+	if err != nil {
+		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+			respondError(w, http.StatusNotFound, "reconciliation not found for this date")
+			return
+		}
+		respondError(w, http.StatusNotFound, "reconciliation not found for this date")
+		return
+	}
+	respondJSON(w, http.StatusOK, rec)
+}
+
 // Get Ledger
 func handleGetLedger(w http.ResponseWriter, r *http.Request) {
 	offset := 0
@@ -273,6 +377,22 @@ func handleAcknowledgeAlert(w http.ResponseWriter, r *http.Request) {
 
 // SSE Endpoint
 func handleSSE(w http.ResponseWriter, r *http.Request) {
+	tokenString := r.URL.Query().Get("token")
+	if tokenString == "" {
+		tokenString = strings.TrimSpace(r.Header.Get("Authorization"))
+		if strings.HasPrefix(tokenString, "Bearer ") {
+			tokenString = strings.TrimSpace(strings.TrimPrefix(tokenString, "Bearer "))
+		}
+	}
+	if tokenString == "" {
+		http.Error(w, "missing or invalid token", http.StatusUnauthorized)
+		return
+	}
+	if _, err := auth.ValidateToken(tokenString); err != nil {
+		http.Error(w, "invalid or expired token", http.StatusUnauthorized)
+		return
+	}
+
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
