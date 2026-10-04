@@ -66,8 +66,20 @@ func RegisterRoutes(r chi.Router) {
 }
 
 func corsMiddleware(next http.Handler) http.Handler {
+	allowedOrigins := []string{
+		"http://localhost:5173",
+		os.Getenv("ALLOWED_ORIGIN"),
+	}
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:5173")
+		origin := r.Header.Get("Origin")
+		for _, allowedOrigin := range allowedOrigins {
+			if allowedOrigin != "" && origin == allowedOrigin {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Add("Vary", "Origin")
+				break
+			}
+		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-RSV-API-Key")
 
@@ -681,7 +693,6 @@ func handleSSE(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("Access-Control-Allow-Origin", "http://localhost:5173")
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
