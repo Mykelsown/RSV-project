@@ -1,0 +1,13 @@
+"$schema" = "https://schema.railpack.com"
+
+provider = "go"
+
+[steps.build]
+commands = [
+  { src = ".", dest = "." },
+  "go mod download",
+  "go build -o out ./cmd/main.go",
+]
+
+[deploy]
+startCommand = "./out"
