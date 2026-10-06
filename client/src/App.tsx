@@ -224,7 +224,7 @@ function DashboardPage() {
     ])
 
     if (summaryRes.ok) setAnalyticsSummary(await summaryRes.json())
-    if (trendRes.ok) setTrendData(await trendRes.json())
+    if (trendRes.ok) setTrendData((await trendRes.json()) || [])
     if (alertsRes.ok) setAlertsSummary(await alertsRes.json())
     if (productsRes.ok) setProductData(await productsRes.json())
     if (crudeRes.ok) setCrudeSources((await crudeRes.json()) || [])
