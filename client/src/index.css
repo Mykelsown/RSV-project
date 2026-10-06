@@ -1,8 +1,77 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=Syne:wght@700;800&display=swap');
 @import "tailwindcss";
 
+:root {
+  --wine-deep: #4a0812;
+  --wine: #7C0E24;
+  --wine-mid: #a01530;
+  --wine-bright: #c8223a;
+  --blue-deep: #001f5c;
+  --blue: #004AAD;
+  --blue-mid: #2d6fd4;
+  --blue-bright: #5170FF;
+  --base: #080308;
+  --surface: #110810;
+  --surface-2: #1a1020;
+  --border: rgba(124, 14, 36, 0.2);
+  --border-blue: rgba(0, 74, 173, 0.25);
+  --text: #f0eceb;
+  --text-muted: #8a8290;
+  --text-faint: #3a3245;
+  --amber: #d4843a;
+  --green: #2a9d6a;
+  color-scheme: dark;
+}
+
+@theme {
+  --font-sans: 'Inter', sans-serif;
+  --color-slate-950: var(--base);
+  --color-slate-900: var(--surface);
+  --color-slate-800: var(--surface-2);
+  --color-slate-700: #2b1b2d;
+  --color-slate-600: #493248;
+  --color-slate-500: #66586a;
+  --color-slate-400: var(--text-muted);
+  --color-slate-300: #bbb2bd;
+  --color-slate-200: #d7d0d8;
+  --color-slate-100: var(--text);
+  --color-cyan-900: var(--blue-deep);
+  --color-cyan-700: var(--blue);
+  --color-cyan-600: var(--wine);
+  --color-cyan-500: var(--wine-mid);
+  --color-blue-600: var(--blue);
+  --color-blue-700: var(--blue-deep);
+  --color-purple-600: var(--blue-deep);
+  --color-green-500: var(--green);
+  --color-green-400: #54c991;
+  --color-amber-500: var(--amber);
+  --color-amber-400: #efad68;
+  --color-red-500: var(--wine-bright);
+  --color-red-400: #ee6a78;
+  --color-rose-600: var(--wine);
+  --color-emerald-500: var(--green);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html {
+  font-family: 'Inter', sans-serif;
+  background: var(--base);
+  color: var(--text);
+  min-width: 320px;
+  scroll-behavior: smooth;
+}
+
 body {
-  margin: 0;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  min-width: 320px;
+  min-height: 100vh;
+  font-family: 'Inter', sans-serif;
+  background: var(--base);
+  color: var(--text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+button, input, select, textarea { font: inherit; }
+button { cursor: pointer; }
+a { color: inherit; }
