@@ -67,8 +67,8 @@ func RegisterRoutes(r chi.Router) {
 
 func corsMiddleware(next http.Handler) http.Handler {
 	allowedOrigins := []string{
-		"http://localhost:5173",
 		os.Getenv("ALLOWED_ORIGIN"),
+		"http://localhost:5173",
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
