@@ -122,3 +122,23 @@
 ### Action: Reverted client to Phase 4 state via git checkout
 
 ### Reason: Redesign prompt broke the UI
+
+## Frontend Redesign V2
+
+### Status: COMPLETE
+
+### Last Updated: 2026-10-06T13:20:00Z
+
+### Completed
+- Public RSV landing page at `/` and `/landing`, including the hero, stats, six capabilities, pausable problem-solution marquee, process steps, CTA, and footer
+- Responsive dual-audience login with operations and regulatory access panels, retaining role-based redirects through AuthContext
+- Shared wine and blue design tokens, Inter and Syne typography, and StatusPill, KPICard, PanelCard, and LiveDot components
+- Responsive dashboard with independently scrolling desktop section cards, mobile bottom tabs, crossfading views, 2x2 overview KPIs, and restyled analytics and operational sections
+- Regulatory portal restyled with the blue-deep header, refinery silhouette banner, summary strip, tokenized cards, and shared status pills
+- Client changes only, existing API, SSE, and auth flows retained
+- No em dashes in client source copy
+- Production build and responsive browser checks passed
+
+### Notes
+- `npm run build` reports the existing large JavaScript chunk warning, with no build errors
+- Browser preview: `http://localhost:5173/`
