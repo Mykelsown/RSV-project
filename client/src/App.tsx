@@ -10,7 +10,7 @@ import KPICard from './components/KPICard'
 import PanelCard from './components/PanelCard'
 import StatusPill from './components/StatusPill'
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1'
+export const API_BASE :string= import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1'
 
 interface DashboardData {
   crude_intake_barrels: number

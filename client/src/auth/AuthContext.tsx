@@ -1,5 +1,6 @@
 import { createContext, useContext, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { API_BASE } from '../App'
 
 export interface AuthUser {
   id: string
@@ -23,7 +24,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
 
   const login = async (email: string, password: string) => {
-    const response = await fetch('http://localhost:8080/api/v1/auth/login', {
+    const response = await fetch( API_BASE, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
