@@ -117,26 +117,26 @@
 
 ## Frontend Redesign V3 (green and white)
 
-### Status: IN PROGRESS
+### Status: COMPLETE
 
 ### Last Updated: 2026-10-15
 
-### Completed so far
-- Stage 1 committed: design tokens, Barlow typography, motion system and shared base styles
-- Stage 2 committed: RippleSurface, useRipple, RippleButton, IconCircle, GlassWidget, KPITile, StatusPill, Donut, useInView
-- Stage 3 committed: landing page with utility bar, hero, overlapping feature cards, about split, systems strip, marquee, steps, dashboard preview, CTA, footer
-- Stage 4 committed: dual glass panel login wired to AuthContext
-- Stage 5 in work: dashboard glass board with segmented navigation
+### Completed
+- Stage 1: green, white and blue design tokens, Barlow and JetBrains Mono typography, motion system with prefers-reduced-motion handling
+- Stage 2: RippleSurface, useRipple, RippleButton, IconCircle, GlassWidget, KPITile, StatusPill, Donut, LiveDot and useInView shared primitives
+- Stage 3: landing page with utility bar, hero, overlapping feature cards, about split with checklist block, connected systems strip, problems and solutions marquee, process steps with drawn line, static dashboard preview, CTA and footer
+- Stage 4: dual glass panel login with dominant and receded swap, wired to AuthContext login and role redirects
+- Stage 5: dashboard glass board with sticky header bar, greeting, segmented navigation with sliding indicator, fulfillment and clock widgets, refresh with one spin, account sheet, mobile glass bottom tab bar, section crossfade and one-time load choreography
+- Stage 6: analytics, crude and distribution, reports and integration restyled into glass widgets with the shared grid
+- Stage 7: read-only regulatory portal with blue accents, summary strip, period intelligence, CSV export and always-expanded ledger
+- Stage 8: contrast bumps, keyboard focus states, eager hero image, ARIA roles on switches, collapses and labels, production preview route checks
 
-### Plan
-- Stage 1: green, white and blue design tokens, Barlow typography, motion system (ALLOWED THIS SESSION)
-- Stage 2: RippleSurface and shared glass widget primitives
-- Stage 3: landing page rebuild
-- Stage 4: dual-panel login rebuild
-- Stage 5: dashboard glass widget board
-- Stage 6: analytics, distribution, reports and integration restyle
-- Stage 7: regulatory portal restyle
-- Stage 8: accessibility and responsive polish
+### Notes
+- API_BASE unchanged, backend untouched, SSE endpoints and event names unchanged, roles and redirects unchanged
+- Dashboard and regulatory routes are lazy-loaded; landing main chunk is about 95 KB gzipped
+- Icons come from lucide-react at stroke width 1.75 inside circular containers; the GitHub mark is inlined because lucide dropped brand icons
+- Photos are read from client/public/images/ with dark green fallbacks if a file is missing
+- npm run build, oxlint and vite preview route checks pass
 
 ## Frontend Redesign Revert
 
