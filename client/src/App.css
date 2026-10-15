@@ -736,9 +736,6 @@
   color: var(--blue-300);
 }
 
-.reg-six .dash-side-badge--wide {
-  background: rgba(47, 124, 240, 0.14);
-}
 
 .reg-header { box-shadow: 0 20px 44px rgba(4, 12, 24, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.12); }
 .reg-header .dash-side-badge--wide .live-dot { background: var(--blue-500); }

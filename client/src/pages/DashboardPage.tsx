@@ -666,7 +666,13 @@ export default function DashboardPage() {
           className="w-body w-wide"
           action="add"
           actionLabel={canManage ? 'Add a note' : undefined}
-          onAction={canManage ? () => setNoteOpen((prev) => ({ ...prev, latest: true })) : undefined}
+          onAction={canManage ? () => {
+            const first = reconciliations[0]
+            if (!first) return
+            const key = first.reconciliation_date.slice(0, 10)
+            setNoteOpen((prev) => ({ ...prev, [key]: true }))
+            if (!noteDrafts[key]) setNoteDrafts((prev) => ({ ...prev, [key]: first.notes || '' }))
+          } : undefined}
           style={widgetStagger(6)}
         >
           {reconciliations.length === 0 && <p className="widget-empty">No reconciliation records found.</p>}
@@ -949,7 +955,7 @@ function ReportsSection(props: any) {
   return (
     <div className="board__grid">
       <GlassWidget
-        icon={Download}
+        icon={FileText}
         title="Operational reports"
         className="w-wide w-body"
         style={widgetStaggerLocal(0)}
@@ -1018,7 +1024,7 @@ const INTEGRATION_CARDS = [
     icon: Ship,
     title: 'Crude terminal sensor',
     description: 'Monitors tanker arrivals and crude intake volumes at the Lekki terminal. In production it connects to the flow metering API at the terminal.',
-    interval: 'Every 4 seconds (dev) / 4 hours (production)' /* mirrors the simulator cadence */,
+    interval: 'Every 40 seconds (dev) / 4 hours (production)',
     next: 'Replace with the terminal SCADA endpoint by implementing the DataSource interface.',
   },
   {
@@ -1059,6 +1065,7 @@ function IntegrationSection({ simulationStatus }: any) {
           title={card.title}
           className="w-body w-source"
           badge={badgeFor(index)}
+          badgeTone={index === 3 ? 'red' : running ? 'green' : 'amber'}
           style={widgetStaggerLocal(index)}
         >
           <p className="widget-copy">{card.description}</p>

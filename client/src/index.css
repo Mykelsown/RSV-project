@@ -277,6 +277,10 @@ h1, h2, h3, .heading {
   color: var(--green-400);
 }
 
+.glass-widget__badge--amber { background: rgba(224, 162, 31, 0.18); color: #f2c35c; }
+.glass-widget__badge--red { background: rgba(217, 68, 82, 0.18); color: #ff9aa3; }
+.glass-widget__badge--blue { background: rgba(47, 124, 240, 0.18); color: var(--blue-300); }
+
 .glass-widget__action { margin-left: 2px; }
 .glass-widget__body { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
 
