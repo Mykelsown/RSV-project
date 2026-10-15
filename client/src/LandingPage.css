@@ -311,13 +311,20 @@
   gap: 22px;
 }
 
+/* Outer wrapper holds the overlapping corner icon; the ripple card is the
+   inner element so the wave clips without clipping the icon. */
 .lp-feature-card {
+  position: relative;
+}
+
+.lp-feature-card__inner {
   background: var(--white);
   border-top: 2px solid var(--green-500);
   border-left: 2px solid var(--green-500);
   border-radius: 16px;
   box-shadow: 0 22px 44px rgba(10, 32, 20, 0.12);
   padding: 46px 26px 26px;
+  height: 100%;
   --lift-shadow: 0 26px 50px rgba(10, 32, 20, 0.18);
 }
 
@@ -325,6 +332,7 @@
   position: absolute;
   top: -24px;
   left: 22px;
+  z-index: 1;
 }
 
 .lp-feature-card__corner .icon-circle {
@@ -333,13 +341,13 @@
   box-shadow: 0 10px 22px rgba(20, 122, 67, 0.3);
 }
 
-.lp-feature-card h3 {
+.lp-feature-card__inner h3 {
   font-size: 26px;
   font-weight: 600;
   margin-bottom: 10px;
 }
 
-.lp-feature-card p {
+.lp-feature-card__inner p {
   color: var(--ink-muted);
   margin-bottom: 16px;
 }
@@ -348,10 +356,16 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  border: 0;
+  background: none;
+  padding: 0;
   color: var(--green-600);
   font-weight: 500;
   font-size: 14px;
+  cursor: pointer;
 }
+
+.lp-feature-card__link:hover { text-decoration: underline; text-underline-offset: 3px; }
 
 /* About */
 .lp-about { padding: 64px 0 96px; }
@@ -534,7 +548,6 @@
   display: flex;
   width: max-content;
   animation: lp-marquee 46s linear infinite;
-  transition: animation-play-state 0s;
 }
 
 .lp-marquee__viewport:hover .lp-marquee__track { animation-play-state: paused; }

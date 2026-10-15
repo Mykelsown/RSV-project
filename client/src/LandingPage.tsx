@@ -33,7 +33,7 @@ const IMAGES = {
   gantry: '/images/gantry-trucks.jpg',
 }
 
-function Photo({ src, alt, className }: { src: string; alt: string; className?: string }) {
+function Photo({ src, alt, className, eager = false }: { src: string; alt: string; className?: string; eager?: boolean }) {
   const [failed, setFailed] = useState(false)
   if (failed) return <div className={`photo-fallback ${className || ''}`} role="presentation" />
   return (
@@ -41,7 +41,7 @@ function Photo({ src, alt, className }: { src: string; alt: string; className?: 
       src={src}
       alt={alt}
       className={className}
-      loading="lazy"
+      loading={eager ? 'eager' : 'lazy'}
       onError={() => setFailed(true)}
     />
   )
@@ -144,14 +144,18 @@ function scrollToSection(id: string) {
 
 function FeatureCard({ icon, title, copy }: { icon: typeof ShieldCheck; title: string; copy: string }) {
   return (
-    <RippleSurface variant="light" className="lp-feature-card" onClick={() => scrollToSection('how-it-works')}>
+    <div className="lp-feature-card">
       <span className="lp-feature-card__corner" aria-hidden="true">
         <IconCircle icon={icon} tone="light" size={48} iconSize={22} />
       </span>
-      <h3>{title}</h3>
-      <p>{copy}</p>
-      <span className="lp-feature-card__link">Learn more <ArrowUpRight size={16} strokeWidth={1.75} /></span>
-    </RippleSurface>
+      <RippleSurface variant="light" className="lp-feature-card__inner" onClick={() => scrollToSection('how-it-works')}>
+        <h3>{title}</h3>
+        <p>{copy}</p>
+        <button type="button" className="lp-feature-card__link" onClick={() => scrollToSection('how-it-works')}>
+          Learn more <ArrowUpRight size={16} strokeWidth={1.75} />
+        </button>
+      </RippleSurface>
+    </div>
   )
 }
 
@@ -244,7 +248,7 @@ export default function LandingPage() {
 
       <section className="lp-hero">
         <div className="lp-hero__bg" aria-hidden="true">
-          <Photo src={IMAGES.hero} alt="" className="lp-hero__img" />
+          <Photo src={IMAGES.hero} alt="" className="lp-hero__img" eager />
           <div className="lp-hero__overlay" />
         </div>
         <div className="lp-hero__content">
@@ -308,7 +312,7 @@ export default function LandingPage() {
       </section>
 
       <section className="lp-systems">
-        <div className="lp-container lp-systems__grid">
+        <Reveal className="lp-container lp-systems__grid">
           <h2>Connects to the systems a refinery already runs</h2>
           <div className="lp-systems__chips">
             {SYSTEM_CHIPS.map((chip) => (
@@ -316,11 +320,13 @@ export default function LandingPage() {
             ))}
             <p className="lp-systems__note">Each source plugs in through one standard interface.</p>
           </div>
-        </div>
+        </Reveal>
       </section>
 
       <section className="lp-marquee" id="why-rsv">
-        <h2>Why RSV</h2>
+        <Reveal>
+          <h2>Why RSV</h2>
+        </Reveal>
         <div className="lp-marquee__viewport" aria-hidden="false">
           <div className="lp-marquee__track">
             {[0, 1].map((copy) => (
@@ -351,19 +357,23 @@ export default function LandingPage() {
           <div className="lp-preview__overlay" />
         </div>
         <div className="lp-container lp-preview__inner">
-          <h2>See the board the operations team sees.</h2>
-          <p className="lp-preview__note">A static preview of the live dashboard with sample data.</p>
-          <div className="lp-preview__frame" aria-hidden="true">
-            <StaticBoard />
-          </div>
-          <Link to="/login" className="lp-btn lp-btn--solid">Open the live demo</Link>
+          <Reveal>
+            <h2>See the board the operations team sees.</h2>
+            <p className="lp-preview__note">A static preview of the live dashboard with sample data.</p>
+            <div className="lp-preview__frame" aria-hidden="true">
+              <StaticBoard />
+            </div>
+            <Link to="/login" className="lp-btn lp-btn--solid">Open the live demo</Link>
+          </Reveal>
         </div>
       </section>
 
       <section className="lp-cta">
-        <h2>One data feed is enough to start.</h2>
-        <p>Connect the gantry loading system and the verified record begins that day.</p>
-        <a href="https://github.com/Mykelsown" target="_blank" rel="noreferrer" className="lp-btn lp-btn--inverted">Request a demo</a>
+        <Reveal>
+          <h2>One data feed is enough to start.</h2>
+          <p>Connect the gantry loading system and the verified record begins that day.</p>
+          <a href="https://github.com/Mykelsown" target="_blank" rel="noreferrer" className="lp-btn lp-btn--inverted">Request a demo</a>
+        </Reveal>
       </section>
 
       <footer className="lp-footer">

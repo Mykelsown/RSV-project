@@ -297,13 +297,13 @@ h1, h2, h3, .heading {
   text-align: left;
 }
 
-.kpi-tile__label { font-size: 12px; color: rgba(255, 255, 255, 0.6); }
+.kpi-tile__label { font-size: 12px; color: rgba(255, 255, 255, 0.66); }
 .kpi-tile__value { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 26px; color: var(--white); transition: color var(--dur-press) var(--ease-out); }
 .kpi-tile--green .kpi-tile__value { color: var(--green-400); }
 .kpi-tile--blue .kpi-tile__value { color: var(--blue-300); }
 .kpi-tile--amber .kpi-tile__value { color: #f2c35c; }
 .kpi-tile--red .kpi-tile__value { color: #ff9aa3; }
-.kpi-tile__unit { font-size: 12px; color: rgba(255, 255, 255, 0.55); }
+.kpi-tile__unit { font-size: 12px; color: rgba(255, 255, 255, 0.62); }
 .kpi-tile.is-pulsing .kpi-tile__value { color: var(--blue-300); }
 .kpi-tile--green.is-pulsing .kpi-tile__value { color: var(--white); }
 .kpi-tile--sm .kpi-tile__value { font-size: 20px; }
