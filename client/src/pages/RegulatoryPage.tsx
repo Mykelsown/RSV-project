@@ -117,7 +117,7 @@ export default function RegulatoryPage() {
           <span className="dash-side-badge dash-side-badge--wide"><LiveDot label="Verified data feed" /></span>
           <div className="glass-tile reg-user">
             <strong>{user?.full_name}</strong>
-            <span>{user?.role?.replaceAll('_', ' ')}</span>
+            <span>{user?.role?.replaceAll('_', ' ')}, read-only</span>
           </div>
           <RippleButton type="button" className="dash-menu__logout" onClick={logout}>
             Logout
@@ -195,9 +195,9 @@ export default function RegulatoryPage() {
                   </table>
                 </div>
               )}
-              <RippleButton type="button" className="pill-btn reg-export" onClick={exportCsv}>
-                <Download size={15} strokeWidth={1.75} /> Export CSV
-              </RippleButton>
+          <RippleButton type="button" className="pill-btn reg-export" aria-label="Download the reconciliation records as a CSV file" onClick={exportCsv}>
+            <Download size={15} strokeWidth={1.75} /> Export CSV
+          </RippleButton>
             </GlassWidget>
 
             {/* Ledger, always expanded */}
