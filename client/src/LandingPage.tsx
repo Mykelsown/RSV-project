@@ -1,117 +1,464 @@
-import { Link } from 'react-router-dom'
-import LiveDot from './components/LiveDot'
+import { useEffect, useState, type ReactNode } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import {
+  Mail, MapPin, Fuel, Menu, X, ShieldCheck, Activity, Landmark, Gauge, Factory,
+  Waves, Server, Truck, Database, AlertTriangle, ChevronRight, CheckCircle2,
+  Check, CloudUpload, Scale, Lock, MonitorCheck, Play, ArrowUpRight, Ship,
+} from 'lucide-react'
 import './LandingPage.css'
+import RippleSurface from './components/RippleSurface'
+import RippleButton from './components/RippleButton'
+import IconCircle from './components/IconCircle'
+import GlassWidget from './components/GlassWidget'
+import Donut from './components/Donut'
+import KPITile from './components/KPITile'
+import StatusPill from './components/StatusPill'
+import LiveDot from './components/LiveDot'
+import { useInView } from './components/useInView'
+import { useAuth } from './auth/AuthContext'
 
-const problems = [
-  ['NMDPRA publishes 51.5% fulfillment. Dangote has no verified counter-record.', 'Tamper-evident daily output ledger. Both parties read the same signed record.'],
-  ['Crude allocation dispute: trading sources report 7 cargoes, refinery officials say otherwise.', 'Every cargo allocation carries a reference number logged at intake. Discrepancies surface in real time.'],
-  ['Production shortfalls discovered in quarterly reports, not the morning they happen.', 'Fulfillment is tracked against the 35M litre target every 30 minutes. Alerts fire the same day.'],
-  ['IPO due diligence requires auditable production records. Spreadsheets do not survive scrutiny.', 'Cryptographically verified reports covering any date range, generated in one click.'],
-  ['Connecting real IoT sensors to a new system requires months of integration work.', "RSV's DataSource interface means any live feed connects by implementing one Go interface."],
-]
-
-const features = [
-  { icon: 'tanker', title: 'Crude intake, recorded as it arrives', description: 'Every tanker arrival is logged with volume, crude type, source country, and allocation reference. The terminal sensor feed connects via a single API endpoint.' },
-  { icon: 'balance', title: 'Output reconciled against commitment', description: 'Actual production unit throughput is measured against the expected yield from crude intake and the 35 million litre daily target. Shortfalls are flagged the same morning they occur.' },
-  { icon: 'truck', title: 'Every litre tracked to its distributor', description: 'Each truck loaded at the gantry generates a timestamped record linking product type, volume, distributor, and destination region. Nothing leaves without a record.' },
-  { icon: 'chain', title: 'Ledger entries that cannot be changed', description: 'Daily reconciliation records are SHA-256 hash-chained. Once written, alteration is mathematically detectable. Both Dangote and the NMDPRA read from the same record.' },
-  { icon: 'building', title: 'A dedicated view for the NMDPRA', description: 'Regulators get a read-only portal showing the same verified data. Export to CSV for any date range. The adversarial dynamic ends when both see the same numbers.' },
-  { icon: 'report', title: 'Reports that survive due diligence', description: 'One-click reports covering any date range include a cryptographic ledger verification. This is the operational track record institutional investors ask for before they buy.' },
-]
-
-const steps = [
-  ['01', 'Data arrives', 'A sensor or API sends readings to RSV ingest endpoints.'],
-  ['02', 'Numbers reconcile', 'The engine compares intake, yield, and output against the daily target.'],
-  ['03', 'Record is sealed', 'A midnight ledger entry is written with a SHA-256 hash chain.'],
-  ['04', 'Both sides verify', 'Management and regulators see the same verified record.'],
-]
-
-function FeatureIcon({ kind }: { kind: string }) {
-  const paths: Record<string, string> = {
-    tanker: 'M3 16h18l-2 4H6l-3-4Zm2 0V8h11l3 8M7 8V5h8v3M8 20v1m10-1v1M9 11h2m3 0h2',
-    balance: 'M12 3v17m-7 0h14M6 7h12M6 7l-3 5h6L6 7Zm12 0-3 5h6l-3-5ZM9 3h6',
-    truck: 'M3 6h12v11H3zM15 10h4l3 3v4h-7zM7 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm11 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z',
-    chain: 'M10 13a5 5 0 0 0 7.1 0l2-2a5 5 0 0 0-7.1-7.1l-1.2 1.2m3.2 5a5 5 0 0 0-7.1 0l-2 2a5 5 0 0 0 7.1 7.1l1.2-1.2',
-    building: 'M4 21h16M6 21V7l6-4 6 4v14M9 10h1m4 0h1M9 14h1m4 0h1M10 21v-4h4v4',
-    report: 'M6 3h9l4 4v14H6zM14 3v5h5M9 12h7m-7 4h7m-7 4h4',
-  }
-  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d={paths[kind]} /></svg>
+/* GitHub brand mark (lucide-react no longer ships brand icons) */
+function GitHubMark({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M12 1.5A10.5 10.5 0 0 0 1.5 12c0 4.64 3.01 8.58 7.18 9.97.53.1.72-.23.72-.5v-1.79c-2.92.63-3.54-1.24-3.54-1.24-.48-1.21-1.17-1.53-1.17-1.53-.95-.65.07-.64.07-.64 1.06.07 1.61 1.08 1.61 1.08.94 1.6 2.46 1.14 3.06.87.1-.68.37-1.14.66-1.4-2.33-.27-4.78-1.17-4.78-5.19 0-1.15.41-2.08 1.08-2.82-.11-.26-.47-1.33.1-2.77 0 0 .88-.28 2.88 1.08a10 10 0 0 1 5.24 0c2-1.36 2.88-1.08 2.88-1.08.57 1.44.21 2.51.1 2.77.67.74 1.08 1.67 1.08 2.82 0 4.03-2.45 4.91-4.79 5.18.38.32.71.96.71 1.94v2.88c0 .28.19.61.73.5A10.5 10.5 0 0 0 22.5 12 10.5 10.5 0 0 0 12 1.5Z" />
+    </svg>
+  )
 }
 
-function LandingPage() {
-  const pairedProblems = [...problems, ...problems]
+const IMAGES = {
+  hero: '/images/refinery-hero.jpg',
+  tanks: '/images/refinery-tanks.jpg',
+  controls: '/images/control-room.jpg',
+  gantry: '/images/gantry-trucks.jpg',
+}
+
+function Photo({ src, alt, className }: { src: string; alt: string; className?: string }) {
+  const [failed, setFailed] = useState(false)
+  if (failed) return <div className={`photo-fallback ${className || ''}`} role="presentation" />
   return (
-    <div className="landing-page">
-      <nav className="landing-nav">
-        <a className="brand-mark" href="#top" aria-label="RSV home">RSV<sup>BETA</sup></a>
-        <Link to="/login" className="nav-demo">Request Demo</Link>
-      </nav>
+    <img
+      src={src}
+      alt={alt}
+      className={className}
+      loading="lazy"
+      onError={() => setFailed(true)}
+    />
+  )
+}
 
-      <section className="landing-hero" id="top">
-        <div className="hero-copy">
-          <div className="hero-status"><LiveDot label="Live system" /></div>
-          <h1>The refinery produced<br />18 million litres yesterday.<br />It promised 35.</h1>
-          <p>RSV creates a tamper-evident, real-time record of every barrel in and every litre out. When the NMDPRA publishes a number, it matches yours. Because you are both reading the same ledger.</p>
-          <div className="hero-actions">
-            <Link to="/login" className="button-primary">See the live demo</Link>
-            <a href="#what-rsv-does" className="button-secondary">Read the brief</a>
+function Reveal({ children, className = '' }: { children: ReactNode; className?: string }) {
+  const { ref, inView } = useInView<HTMLDivElement>()
+  return (
+    <div ref={ref} className={`fade-section ${inView ? 'is-in' : ''} ${className}`.trim()}>
+      {children}
+    </div>
+  )
+}
+
+const FEATURES = [
+  {
+    icon: ShieldCheck,
+    title: 'Verified output',
+    copy: 'Daily output is reconciled against crude intake and sealed in a hash-chained ledger.',
+  },
+  {
+    icon: Activity,
+    title: 'Live data feeds',
+    copy: 'Tanker arrivals, unit throughput and gantry loadings stream in as they happen.',
+  },
+  {
+    icon: Landmark,
+    title: 'Regulator access',
+    copy: 'The NMDPRA gets a read-only portal showing the same verified numbers.',
+  },
+]
+
+const NAV_SECTIONS = [
+  { id: 'home', label: 'Home' },
+  { id: 'what-rsv-does', label: 'What RSV does' },
+  { id: 'why-rsv', label: 'Why RSV' },
+  { id: 'how-it-works', label: 'How it works' },
+]
+
+const MARQUEE_PAIRS = [
+  {
+    problem: 'The regulator publishes 51.5% fulfillment and the refinery has no matching record.',
+    solution: 'A shared, signed daily ledger both sides can open.',
+  },
+  {
+    problem: 'Crude cargo counts differ between trading sources and refinery officials.',
+    solution: 'Each cargo carries an allocation reference logged at intake.',
+  },
+  {
+    problem: 'Shortfalls are found in quarterly reports.',
+    solution: 'Fulfillment is tracked against 35M litres through the day, with same-day alerts.',
+  },
+  {
+    problem: 'Investor due diligence needs auditable production records.',
+    solution: 'Reports for any date range with hash chain verification.',
+  },
+  {
+    problem: 'Connecting live sensors takes months.',
+    solution: 'A single DataSource interface for every feed, simulated today and live tomorrow.',
+  },
+]
+
+const SYSTEM_CHIPS = [
+  { icon: Waves, label: 'Terminal flow meters' },
+  { icon: Server, label: 'Distributed control systems' },
+  { icon: Truck, label: 'Gantry controllers' },
+  { icon: Database, label: 'ERP and allocation' },
+]
+
+const PROCESS_STEPS = [
+  {
+    icon: CloudUpload,
+    title: 'Data arrives',
+    copy: 'Sensors and the ingest API push intake, output and loading events through the day.',
+  },
+  {
+    icon: Scale,
+    title: 'Output is reconciled',
+    copy: 'Raw output is checked against intake, yield and the daily target.',
+  },
+  {
+    icon: Lock,
+    title: 'The day is sealed',
+    copy: 'The reconciled day is sealed as a hash-chained ledger entry.',
+  },
+  {
+    icon: MonitorCheck,
+    title: 'Both sides see it',
+    copy: 'The refinery dashboard and the regulatory portal read the same record.',
+  },
+]
+
+function BackToAppLink({ className, children }: { className?: string; children: ReactNode }) {
+  return <Link to="/login" className={className}>{children}</Link>
+}
+
+function scrollToSection(id: string) {
+  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+function FeatureCard({ icon, title, copy }: { icon: typeof ShieldCheck; title: string; copy: string }) {
+  return (
+    <RippleSurface variant="light" className="lp-feature-card" onClick={() => scrollToSection('how-it-works')}>
+      <span className="lp-feature-card__corner" aria-hidden="true">
+        <IconCircle icon={icon} tone="light" size={48} iconSize={22} />
+      </span>
+      <h3>{title}</h3>
+      <p>{copy}</p>
+      <span className="lp-feature-card__link">Learn more <ArrowUpRight size={16} strokeWidth={1.75} /></span>
+    </RippleSurface>
+  )
+}
+
+function MarqueePair({ problem, solution }: { problem: string; solution: string }) {
+  return (
+    <div className="lp-marquee__pair">
+      <RippleSurface className="lp-marquee__card lp-marquee__card--problem">
+        <IconCircle icon={AlertTriangle} tone="glass" size={30} iconSize={16} />
+        <span>{problem}</span>
+      </RippleSurface>
+      <ChevronRight className="lp-marquee__chevron" size={22} strokeWidth={1.75} />
+      <RippleSurface className="lp-marquee__card lp-marquee__card--solution">
+        <IconCircle icon={CheckCircle2} tone="glass" size={30} iconSize={16} />
+        <span>{solution}</span>
+      </RippleSurface>
+    </div>
+  )
+}
+
+function StepItem({ step, index }: { step: (typeof PROCESS_STEPS)[number]; index: number }) {
+  return (
+    <div className="lp-step">
+      <div className="lp-step__circle">
+        <IconCircle icon={step.icon} tone="light" size={58} iconSize={22} />
+        <span className="lp-step__number">0{index + 1}</span>
+      </div>
+      <h3>{step.title}</h3>
+      <p>{step.copy}</p>
+    </div>
+  )
+}
+
+export default function LandingPage() {
+  const navigate = useNavigate()
+  const { user } = useAuth()
+  const [scrolled, setScrolled] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const steps = useInView<HTMLDivElement>()
+
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 40)
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  const dashboardTarget = user && user.role !== 'regulatory' ? '/dashboard' : user ? '/regulatory' : '/login'
+
+  return (
+    <div className="lp" id="home">
+      <div className="lp-utility">
+        <div className="lp-utility__group">
+          <span><MapPin size={14} strokeWidth={1.75} /> Lekki Free Zone, Lagos, Nigeria</span>
+          <span><Mail size={14} strokeWidth={1.75} /> Demo and pilot enquiries via the request form</span>
+        </div>
+        <a href="https://github.com/Mykelsown" target="_blank" rel="noreferrer" aria-label="RSV on GitHub">
+          <GitHubMark />
+        </a>
+      </div>
+
+      <header className={`lp-nav ${scrolled ? 'is-scrolled' : ''}`}>
+        <div className="lp-nav__inner">
+          <Link to="/" className="lp-nav__brand" onClick={() => setMenuOpen(false)}>
+            <span className="lp-logo-mark"><Fuel size={18} strokeWidth={1.75} /></span>
+            <span className="lp-nav__wordmark">RSV</span>
+          </Link>
+          <nav className="lp-nav__links" aria-label="Main">
+            {NAV_SECTIONS.map((section) => (
+              <button key={section.id} type="button" onClick={() => scrollToSection(section.id)}>{section.label}</button>
+            ))}
+            <Link to={dashboardTarget}>Dashboard</Link>
+          </nav>
+          <div className="lp-nav__actions">
+            <Link to="/login" className="lp-nav__signin">Sign in</Link>
+            <a href="https://github.com/Mykelsown" target="_blank" rel="noreferrer" className="lp-btn lp-btn--solid">Request a demo</a>
+            <button type="button" className="lp-nav__menu-btn" aria-label={menuOpen ? 'Close menu' : 'Open menu'} aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>
+              {menuOpen ? <X size={20} strokeWidth={1.75} /> : <Menu size={20} strokeWidth={1.75} />}
+            </button>
           </div>
         </div>
-        <div className="hero-stat-strip">
-          {[
-            ['650,000 bpd', 'Refinery capacity'],
-            ['51.5%', 'Average fulfillment Oct 24 to Oct 25'],
-            ['35M litres', 'Daily commitment target'],
-            ['0', 'Arbiter disputes with RSV deployed'],
-          ].map(([value, label]) => <div className="hero-stat" key={label}><strong>{value}</strong><span>{label}</span></div>)}
+        <div className={`lp-mobile-menu ${menuOpen ? 'is-open' : ''}`}>
+          {NAV_SECTIONS.map((section) => (
+            <button key={section.id} type="button" onClick={() => { setMenuOpen(false); scrollToSection(section.id) }}>{section.label}</button>
+          ))}
+          <Link to={dashboardTarget} onClick={() => setMenuOpen(false)}>Dashboard</Link>
+          <Link to="/login" onClick={() => setMenuOpen(false)}>Sign in</Link>
         </div>
-      </section>
+      </header>
 
-      <section className="landing-features" id="what-rsv-does">
-        <div className="landing-section-heading"><span>Built for the operating record</span><h2>What RSV does</h2></div>
-        <div className="feature-grid">
-          {features.map((feature) => <article className="feature-card" key={feature.title}>
-            <div className="feature-icon"><FeatureIcon kind={feature.icon} /></div>
-            <h3>{feature.title}</h3><p>{feature.description}</p>
-          </article>)}
+      <section className="lp-hero">
+        <div className="lp-hero__bg" aria-hidden="true">
+          <Photo src={IMAGES.hero} alt="" className="lp-hero__img" />
+          <div className="lp-hero__overlay" />
         </div>
-      </section>
-
-      <section className="problems-section">
-        <h2>The problems it solves</h2>
-        <div className="marquee-window">
-          <div className="marquee-track">
-            {pairedProblems.map(([problem, solution], index) => <div className="problem-pair" key={`${index}-${problem}`}>
-              <article className="problem-card"><span>Problem</span><p>{problem}</p></article>
-              <svg className="pair-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13m-5-6 6 6-6 6" /></svg>
-              <article className="solution-card"><span>RSV</span><p>{solution}</p></article>
-            </div>)}
+        <div className="lp-hero__content">
+          <span className="lp-hero__tag"><LiveDot label="Verified refinery data" /></span>
+          <h1>Every barrel in and every litre out, on one verified record.</h1>
+          <p>
+            Between October 2024 and October 2025 the refinery averaged 18 million litres of petrol
+            a day against a 35 million litre commitment, according to NMDPRA data. RSV gives the
+            refinery and the regulator the same tamper-evident record, updated all day.
+          </p>
+          <div className="lp-hero__actions">
+            <BackToAppLink className="lp-btn lp-btn--solid">See the live demo</BackToAppLink>
+            <button type="button" className="lp-btn lp-btn--outline" onClick={() => scrollToSection('how-it-works')}>
+              Read how it works
+            </button>
           </div>
         </div>
       </section>
 
-      <section className="how-section">
-        <div className="landing-section-heading"><span>One record, from intake to oversight</span><h2>How RSV works</h2></div>
-        <div className="steps-grid">
-          {steps.map(([number, title, description], index) => <div className="step-wrap" key={number}>
-            <article className="process-step"><div className="step-number">{number}</div><h3>{title}</h3><p>{description}</p></article>
-            {index < steps.length - 1 && <svg className="step-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13m-5-6 6 6-6 6" /></svg>}
-          </div>)}
+      <section className="lp-features" aria-label="What RSV provides">
+        <div className="lp-container lp-features__grid">
+          {FEATURES.map((feature) => <FeatureCard key={feature.title} {...feature} />)}
         </div>
       </section>
 
-      <section className="landing-cta" id="request-demo">
-        <h2>RSV is running. The refinery is not.</h2>
-        <p>One data feed connected in 30 days is all it takes to begin building the operational record the IPO requires.</p>
-        <Link to="/login" className="button-primary">Request a demo</Link>
+      <section className="lp-about" id="what-rsv-does">
+        <div className="lp-container lp-about__grid">
+          <Reveal className="lp-about__media">
+            <Photo src={IMAGES.tanks} alt="Storage tank farm at the refinery" className="lp-about__img" />
+            <RippleSurface variant="light" className="lp-checklist">
+              <span className="lp-checklist__title">On the record</span>
+              {[
+                'Crude intake logged on arrival',
+                'Output measured against the 35M litre target',
+                'Every truck tied to a distributor',
+                'Ledger entries that cannot be edited',
+              ].map((item) => (
+                <span key={item} className="lp-checklist__item"><Check size={16} strokeWidth={2} /> {item}</span>
+              ))}
+            </RippleSurface>
+          </Reveal>
+          <div className="lp-about__copy">
+            <div className="lp-eyebrow"><span className="lp-eyebrow__line" aria-hidden="true" /> What RSV does</div>
+            <h2>Operational records that hold up under audit</h2>
+            <p className="lp-about__pull">One record for the refinery, the regulator and the investor.</p>
+            <p>
+              Crude cargo arrivals, unit throughput and gantry loadings flow in from the refinery
+              floor through one standard interface. RSV reconciles what came in against what came
+              out, hour by hour, and flags anything that drifts from the daily commitment.
+            </p>
+            <p>
+              Each verified day is sealed into a hash-chained ledger, so the same numbers reach the
+              operations floor, the NMDPRA portal and investor reports without anyone retyping them.
+            </p>
+            <div className="lp-about__actions">
+              <Link to="/login" className="lp-btn lp-btn--solid">See the platform</Link>
+              <RippleButtonPlay onClick={() => navigate('/login')} />
+            </div>
+          </div>
+        </div>
       </section>
 
-      <footer className="landing-footer">
-        <div><a className="brand-mark" href="#top">RSV</a><span>Real-Time Refinery Output and Crude Supply Verification</span></div>
-        <a href="https://github.com/Mykelsown" target="_blank" rel="noreferrer">Samuel Micheal Pelumi, Lagos Nigeria, github.com/Mykelsown</a>
+      <section className="lp-systems">
+        <div className="lp-container lp-systems__grid">
+          <h2>Connects to the systems a refinery already runs</h2>
+          <div className="lp-systems__chips">
+            {SYSTEM_CHIPS.map((chip) => (
+              <span key={chip.label} className="lp-chip"><IconCircle icon={chip.icon} tone="light" size={34} iconSize={18} /> {chip.label}</span>
+            ))}
+            <p className="lp-systems__note">Each source plugs in through one standard interface.</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="lp-marquee" id="why-rsv">
+        <h2>Why RSV</h2>
+        <div className="lp-marquee__viewport" aria-hidden="false">
+          <div className="lp-marquee__track">
+            {[0, 1].map((copy) => (
+              <div className="lp-marquee__sequence" key={copy} aria-hidden={copy === 1}>
+                {MARQUEE_PAIRS.map((pair, index) => <MarqueePair key={index} {...pair} />)}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="lp-process" id="how-it-works">
+        <div className="lp-container">
+          <Reveal>
+            <div className="lp-eyebrow"><span className="lp-eyebrow__line" aria-hidden="true" /> How it works</div>
+            <h2>From sensor reading to sealed record, every day</h2>
+          </Reveal>
+          <div ref={steps.ref} className={`lp-steps ${steps.inView ? 'is-in' : ''}`}>
+            <span className="lp-steps__line" aria-hidden="true" />
+            {PROCESS_STEPS.map((step, index) => <StepItem key={step.title} step={step} index={index} />)}
+          </div>
+        </div>
+      </section>
+
+      <section className="lp-preview">
+        <div className="lp-preview__bg" aria-hidden="true">
+          <Photo src={IMAGES.hero} alt="" className="lp-preview__img" />
+          <div className="lp-preview__overlay" />
+        </div>
+        <div className="lp-container lp-preview__inner">
+          <h2>See the board the operations team sees.</h2>
+          <p className="lp-preview__note">A static preview of the live dashboard with sample data.</p>
+          <div className="lp-preview__frame" aria-hidden="true">
+            <StaticBoard />
+          </div>
+          <Link to="/login" className="lp-btn lp-btn--solid">Open the live demo</Link>
+        </div>
+      </section>
+
+      <section className="lp-cta">
+        <h2>One data feed is enough to start.</h2>
+        <p>Connect the gantry loading system and the verified record begins that day.</p>
+        <a href="https://github.com/Mykelsown" target="_blank" rel="noreferrer" className="lp-btn lp-btn--inverted">Request a demo</a>
+      </section>
+
+      <footer className="lp-footer">
+        <div className="lp-container lp-footer__grid">
+          <div>
+            <span className="lp-logo-mark"><Fuel size={18} strokeWidth={1.75} /></span>
+            <h3>RSV</h3>
+            <p>Real-Time Refinery Output and Crude Supply Verification, a shared tamper-evident record of what the refinery produced and who took delivery.</p>
+          </div>
+          <div>
+            <span className="lp-footer__heading">Quick links</span>
+            {NAV_SECTIONS.map((section) => (
+              <button key={section.id} type="button" onClick={() => scrollToSection(section.id)}>{section.label}</button>
+            ))}
+          </div>
+          <div>
+            <span className="lp-footer__heading">Elsewhere</span>
+            <a href="https://github.com/Mykelsown" target="_blank" rel="noreferrer">github.com/Mykelsown</a>
+          </div>
+        </div>
+        <div className="lp-footer__base">
+          <span>Built by Samuel Micheal Pelumi, Lagos</span>
+        </div>
       </footer>
     </div>
   )
 }
 
-export default LandingPage
+/* Non-interactive scaled preview of the real dashboard, same components. */
+function StaticBoard() {
+  const trend = [47, 51, 55, 49, 53, 58, 51.5].map((percent, index) => ({ percent, label: `0${index + 1}` }))
+  return (
+    <div className="lp-board" style={{ pointerEvents: 'none', userSelect: 'none' }}>
+      <div className="lp-board__header glass-surface">
+        <span className="lp-logo-mark"><Fuel size={16} strokeWidth={1.75} /></span>
+        <div><strong>Good morning, operations</strong><span>Tue 14 Oct, 06:40 WAT</span></div>
+        <StatusPill status="PARTIAL" />
+      </div>
+      <div className="lp-board__grid">
+        <GlassWidget icon={Gauge} title="Today at a glance" className="lp-widget-tall">
+          <Donut value={51.5} size={132} stroke={11}>
+            <strong>51.5%</strong>
+            <span>of 35M litres</span>
+          </Donut>
+          <StatusPill status="PARTIAL" />
+          <div className="lp-widget-minis">
+            <KPITile label="Crude intake" value={224600} unit="barrels" tone="blue" size="sm" />
+            <KPITile label="Actual output" value={18032000} unit="litres" tone="green" size="sm" />
+            <KPITile label="Trucks loaded" value={186} unit="today" tone="white" size="sm" />
+          </div>
+        </GlassWidget>
+        <GlassWidget icon={Ship} title="Live activity" badge="3">
+          {[
+            { icon: Ship, text: 'Tanker LK-114 arrived with 32,000 barrels' , time: '4 min ago' },
+            { icon: Truck, text: 'Zenith loaded 33,100L of petrol at gantry 2', time: '9 min ago' },
+            { icon: Factory, text: 'Combined output reached 18,032,000L', time: '14 min ago' },
+          ].map((event) => (
+            <div key={event.text} className="lp-row">
+              <IconCircle icon={event.icon} tone="glass" size={28} iconSize={16} />
+              <span className="lp-row__text">{event.text}</span>
+              <span className="lp-row__time">{event.time}</span>
+            </div>
+          ))}
+        </GlassWidget>
+        <GlassWidget icon={Activity} title="7-day trend" className="lp-widget-trend">
+          <div className="lp-widget-bars">
+            {trend.map((day) => (
+              <span key={day.label} className="lp-widget-bar">
+                <i style={{ height: `${day.percent * 1.8}%` }} />
+                <em>{day.label}</em>
+              </span>
+            ))}
+          </div>
+        </GlassWidget>
+        <GlassWidget icon={Factory} title="Production units" className="lp-widget-trend">
+          {['CDU-1', 'CDU-2', 'CDU-3'].map((unit, index) => {
+            const yieldPercent = [62, 45, 38][index]
+            return (
+              <div key={unit} className="lp-unit-row">
+                <span className="lp-row__text">{unit}</span>
+                <span className="lp-unit-row__bar"><i style={{ width: `${yieldPercent}%` }} /></span>
+                <strong>{yieldPercent}%</strong>
+              </div>
+            )
+          })}
+        </GlassWidget>
+      </div>
+    </div>
+  )
+}
+
+function RippleButtonPlay({ onClick }: { onClick: () => void }) {
+  return (
+    <RippleButton type="button" className="lp-play-btn" aria-label="Open the dashboard preview" onClick={onClick}>
+      <Play size={18} strokeWidth={1.75} />
+    </RippleButton>
+  )
+}

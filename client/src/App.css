@@ -42,24 +42,8 @@
 .overview-chart { grid-area: chart; }
 .overview-history { grid-area: history; }
 .overview-ledger { grid-area: ledger; }
-.kpi-card { min-width: 0; border: 1px solid var(--border); border-radius: 12px; padding: 18px; background: var(--surface-2); }
-.kpi-card__label { color: var(--text-muted); font-size: 11px; }
-.kpi-card__value { margin-top: 9px; overflow-wrap: anywhere; font-size: 24px; font-weight: 300; line-height: 1.2; }
-.kpi-card__value--blue { color: var(--blue-bright); }
-.kpi-card__value--text { color: var(--text); }
-.kpi-card__value--wine { color: var(--wine-bright); }
-.kpi-card__value--green { color: var(--green); }
-.kpi-card__value--amber { color: var(--amber); }
-.kpi-card__unit { margin-top: 6px; color: var(--text-muted); font-size: 10px; text-transform: capitalize; }
 .fulfillment-kpi { position: relative; }
 .fulfillment-kpi .status-pill { position: absolute; right: 12px; bottom: 12px; }
-.status-pill { display: inline-flex; align-items: center; border: 1px solid transparent; border-radius: 999px; padding: 4px 8px; font-size: 9px; font-weight: 500; text-transform: capitalize; }
-.status-pill--fulfilled { border-color: rgba(42, 157, 106, .35); background: rgba(42, 157, 106, .12); color: #54c991; }
-.status-pill--partial { border-color: rgba(212, 132, 58, .35); background: rgba(212, 132, 58, .12); color: #efad68; }
-.status-pill--shortfall { border-color: rgba(200, 34, 58, .4); background: rgba(200, 34, 58, .14); color: #ee6a78; }
-.status-pill--neutral { border-color: var(--border-blue); background: rgba(0, 74, 173, .1); color: var(--blue-bright); }
-.panel-card { border: 1px solid var(--border); border-radius: 14px; padding: 20px; background: var(--surface-2); }
-.panel-card__title { margin-bottom: 20px; color: var(--text); font-size: 16px; font-weight: 500; }
 .overview-layout h2, .dashboard-content h2 { color: var(--text); }
 .overview-layout table, .dashboard-content table { width: 100%; border-collapse: collapse; }
 .overview-layout thead, .dashboard-content thead { background: rgba(0, 74, 173, .08); }
