@@ -414,7 +414,7 @@ function StaticBoard() {
       </div>
       <div className="lp-board__grid">
         <GlassWidget icon={Gauge} title="Today at a glance" className="lp-widget-tall">
-          <Donut value={51.5} size={132} stroke={11}>
+          <Donut id="preview-fulfillment" value={51.5} size={132} stroke={11}>
             <strong>51.5%</strong>
             <span>of 35M litres</span>
           </Donut>

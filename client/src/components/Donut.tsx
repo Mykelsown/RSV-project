@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { prefersReducedMotion } from './useRipple'
 
 type DonutProps = {
   /** Percent 0 to 100 for the ring fill. */
   value: number
+  /** Stable identity so the intro animation runs once per session. */
+  id?: string
   size?: number
   stroke?: number
   color?: string
@@ -13,6 +15,9 @@ type DonutProps = {
   children?: ReactNode
 }
 
+/* Rings that already animated this session never replay. */
+const countedDonuts = new Set<string>()
+
 const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3)
 const clampPercent = (value: number) => Math.min(100, Math.max(0, value))
 
@@ -20,35 +25,39 @@ const clampPercent = (value: number) => Math.min(100, Math.max(0, value))
  * The shared fulfillment ring. The stroke animates from 0 to the value once
  * over 900ms and then tracks new data without replaying.
  */
-export default function Donut({ value, size = 150, stroke = 12, color = 'var(--green-400)', track = 'rgba(255,255,255,0.16)', animate = true, children }: DonutProps) {
+export default function Donut({ value, id, size = 150, stroke = 12, color = 'var(--green-400)', track = 'rgba(255,255,255,0.16)', animate = true, children }: DonutProps) {
   const radius = (size - stroke) / 2
   const circumference = 2 * Math.PI * radius
   const target = circumference * (clampPercent(value) / 100)
 
-  const [progress, setProgress] = useState(animate && !prefersReducedMotion() ? 0 : target)
-  const animated = useRef(false)
+  const skipIntro = !animate || prefersReducedMotion() || (id !== undefined && countedDonuts.has(id))
+  const [progress, setProgress] = useState(skipIntro ? target : 0)
+  const [introDone, setIntroDone] = useState(skipIntro)
 
   useEffect(() => {
-    if (!animate || !prefersReducedMotion()) {
-      animated.current = true
-    }
-    if (!animate || prefersReducedMotion()) return
-    let raf = 0
+    if (introDone) return
+    let cancelled = false
     const start = performance.now()
     const step = (now: number) => {
+      if (cancelled) return
       const t = Math.min(1, (now - start) / 900)
       setProgress(target * easeOutCubic(t))
-      if (t < 1) raf = requestAnimationFrame(step)
-      else animated.current = true
+      if (t < 1) requestAnimationFrame(step)
+      else {
+        if (id !== undefined) countedDonuts.add(id)
+        setIntroDone(true)
+      }
     }
-    raf = requestAnimationFrame(step)
-    return () => cancelAnimationFrame(raf)
+    requestAnimationFrame(step)
+    return () => {
+      cancelled = true
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [introDone])
 
   useEffect(() => {
-    if (animated.current) setProgress(target)
-  }, [target])
+    if (introDone) setProgress(target)
+  }, [target, introDone])
 
   return (
     <span role="img" aria-label={`Fulfillment ${clampPercent(value).toFixed(1)} percent`} className="donut" style={{ width: size, height: size }}>

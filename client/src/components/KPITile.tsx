@@ -12,41 +12,42 @@ type KPITileProps = {
   size?: 'md' | 'sm'
 }
 
+/* Metrics that already counted up this session never replay, even when the
+   widget remounts after a section switch. */
+const countedMetrics = new Set<string>()
+
 /* Count up once on first load over 600ms, then show new values instantly. */
-function useCountValue(value: number | null) {
-  const [display, setDisplay] = useState(0)
-  const animated = useRef(false)
-  const firstValue = useRef(true)
+function useCountValue(value: number | null, metric: string) {
+  const [display, setDisplay] = useState(() => (value !== null && countedMetrics.has(metric) ? value : 0))
 
   useEffect(() => {
     if (value === null) return
-    if (!animated.current) {
-      animated.current = true
-      if (prefersReducedMotion()) {
-        setDisplay(value)
-        firstValue.current = false
-        return
-      }
-      const start = performance.now()
-      const from = 0
-      const step = (now: number) => {
-        const progress = Math.min(1, (now - start) / 600)
-        const eased = 1 - Math.pow(1 - progress, 3)
-        setDisplay(from + (value - from) * eased)
-        if (progress < 1) requestAnimationFrame(step)
-        else firstValue.current = false
-      }
-      requestAnimationFrame(step)
-    } else {
+    if (countedMetrics.has(metric) || prefersReducedMotion()) {
+      countedMetrics.add(metric)
       setDisplay(value)
+      return
     }
-  }, [value])
+    let cancelled = false
+    const start = performance.now()
+    const step = (now: number) => {
+      if (cancelled) return
+      const progress = Math.min(1, (now - start) / 600)
+      const eased = 1 - Math.pow(1 - progress, 3)
+      setDisplay(value * eased)
+      if (progress < 1) requestAnimationFrame(step)
+      else countedMetrics.add(metric)
+    }
+    requestAnimationFrame(step)
+    return () => {
+      cancelled = true
+    }
+  }, [value, metric])
 
   return display
 }
 
 export default function KPITile({ label, value, unit, tone = 'white', size = 'md' }: KPITileProps) {
-  const display = useCountValue(value)
+  const display = useCountValue(value, label)
   const [pulsing, setPulsing] = useState(false)
   const previous = useRef<number | null>(null)
 

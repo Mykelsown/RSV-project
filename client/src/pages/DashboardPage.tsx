@@ -519,6 +519,7 @@ export default function DashboardPage() {
         {/* Today at a glance (tall) */}
         <GlassWidget icon={Gauge} title="Today at a glance" className="w-tall" style={widgetStagger(0)}>
           <Donut
+            id="overview-fulfillment"
             value={fulfillment ?? 0}
             size={148}
             stroke={12}
