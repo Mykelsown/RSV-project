@@ -1,72 +1,131 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { useAuth } from './auth/AuthContext'
+import { ArrowLeft, Fuel, Landmark, LogIn } from 'lucide-react'
 import './LoginPage.css'
+import RippleSurface from './components/RippleSurface'
+import RippleButton from './components/RippleButton'
+import { useAuth } from './auth/AuthContext'
 
-type Audience = 'operations' | 'regulatory'
+type Side = 'staff' | 'regulator'
 
-function LoginPage() {
+const ERROR_HINT = 'Check that the email and password belong to this account type, then try again.'
+
+function LoginFormPanel({
+  side,
+  dominant,
+  onSwitch,
+}: {
+  side: Side
+  dominant: boolean
+  onSwitch: () => void
+}) {
+  const isStaff = side === 'staff'
   const { login } = useAuth()
-  const [activeAudience, setActiveAudience] = useState<Audience>('operations')
-  const [operationsEmail, setOperationsEmail] = useState('')
-  const [operationsPassword, setOperationsPassword] = useState('')
-  const [regulatoryEmail, setRegulatoryEmail] = useState('')
-  const [regulatoryPassword, setRegulatoryPassword] = useState('')
-  const [operationsError, setOperationsError] = useState('')
-  const [regulatoryError, setRegulatoryError] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
 
-  const submit = async (event: FormEvent<HTMLFormElement>, audience: Audience) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault()
-    const isOperations = audience === 'operations'
-    const email = isOperations ? operationsEmail : regulatoryEmail
-    const password = isOperations ? operationsPassword : regulatoryPassword
-    const setError = isOperations ? setOperationsError : setRegulatoryError
-    setError('')
+    if (!email.trim() || !password) {
+      setError('Enter both the email and the password to sign in.')
+      return
+    }
+    setLoading(true)
+    setError(null)
     try {
-      await login(email, password)
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Unable to sign in')
+      await login(email.trim(), password)
+    } catch (err) {
+      const reason = err instanceof Error && err.message && !err.message.startsWith('Invalid') ? err.message : 'The email or password is not correct.'
+      setError(`${reason} ${ERROR_HINT}`)
+      setLoading(false)
     }
   }
 
   return (
-    <main className={`login-page login-page--${activeAudience}`}>
-      <Link className="login-home" to="/" aria-label="RSV home">RSV</Link>
-      <section className={`login-panel login-panel--operations ${activeAudience === 'operations' ? 'login-panel--active' : 'login-panel--receded'}`}>
-        <div className="login-panel-top"><Link className="login-brand" to="/">RSV</Link><span>Internal Operations</span></div>
-        <div className="login-panel-content">
-          <h1>Dangote Operations Access</h1>
-          <p>For operations managers, executives, and trading desk personnel.</p>
-          <form className="login-form" onSubmit={(event) => submit(event, 'operations')}>
-            <fieldset disabled={activeAudience !== 'operations'}>
-              <label>Email<input type="email" autoComplete="username" placeholder="name@company.com" value={operationsEmail} onChange={(event) => setOperationsEmail(event.target.value)} required /></label>
-              <label>Password<input type="password" autoComplete="current-password" placeholder="Enter your password" value={operationsPassword} onChange={(event) => setOperationsPassword(event.target.value)} required /></label>
-              <button type="submit" className="login-submit">Sign in</button>
-              <div className="login-error" role="alert">{operationsError}</div>
-            </fieldset>
-          </form>
-        </div>
-        <button className="login-switch" type="button" onClick={() => setActiveAudience('regulatory')}>Are you from the NMDPRA? Switch to regulatory access</button>
-      </section>
-
-      <section className={`login-panel login-panel--regulatory ${activeAudience === 'regulatory' ? 'login-panel--active' : 'login-panel--receded'}`}>
-        <div className="login-panel-top"><span className="regulatory-badge">NMDPRA</span><span>Verified data access</span></div>
-        <div className="login-panel-content">
-          <h1>Regulatory Oversight Access</h1>
-          <p>For NMDPRA auditors and regulatory personnel. Read-only access to verified refinery data.</p>
-          <form className="login-form" onSubmit={(event) => submit(event, 'regulatory')}>
-            <fieldset disabled={activeAudience !== 'regulatory'}>
-              <label>Email<input type="email" autoComplete="username" placeholder="name@agency.gov.ng" value={regulatoryEmail} onChange={(event) => setRegulatoryEmail(event.target.value)} required /></label>
-              <label>Password<input type="password" autoComplete="current-password" placeholder="Enter your password" value={regulatoryPassword} onChange={(event) => setRegulatoryPassword(event.target.value)} required /></label>
-              <button type="submit" className="login-submit">Sign in as Regulator</button>
-              <div className="login-error" role="alert">{regulatoryError}</div>
-            </fieldset>
-          </form>
-        </div>
-        <button className="login-switch" type="button" onClick={() => setActiveAudience('operations')}>Are you Dangote staff? Switch to operations access</button>
-      </section>
-    </main>
+    <RippleSurface
+      lift={false}
+      variant="glass"
+      className={`login-panel login-panel--${side} ${dominant ? 'is-dominant' : 'is-receded'}`}
+    >
+      <div className="login-panel__head">
+        <span className={`login-panel__badge ${isStaff ? 'login-panel__badge--green' : 'login-panel__badge--blue'}`}>
+          {isStaff ? 'Refinery operations' : 'Regulatory body'}
+        </span>
+        <span className="login-panel__mark" aria-hidden="true">
+          {isStaff ? <Fuel size={20} strokeWidth={1.75} /> : <Landmark size={20} strokeWidth={1.75} />}
+        </span>
+      </div>
+      <h1>{isStaff ? 'Staff and executive access' : 'NMDPRA oversight access'}</h1>
+      <p className="login-panel__intro">
+        {isStaff
+          ? 'Monitor production, distribution and the verified output ledger.'
+          : 'Read-only access to the verified reconciliation records.'}
+      </p>
+      <form className={`login-panel__form ${dominant ? '' : 'is-hidden'}`} onSubmit={submit} aria-hidden={!dominant}>
+        <label>
+          <span>Email</span>
+          <input
+            className={`glass-input ${isStaff ? '' : 'glass-input--regulator'}`}
+            type="email"
+            name="email"
+            autoComplete="email"
+            placeholder="you@company.com"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            tabIndex={dominant ? 0 : -1}
+          />
+        </label>
+        <label>
+          <span>Password</span>
+          <input
+            className={`glass-input ${isStaff ? '' : 'glass-input--regulator'}`}
+            type="password"
+            name="password"
+            autoComplete="current-password"
+            placeholder="Your password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            tabIndex={dominant ? 0 : -1}
+          />
+        </label>
+        {error && <p className="login-panel__error" role="alert">{error}</p>}
+        <RippleButton type="submit" className={`login-panel__submit ${isStaff ? '' : 'login-panel__submit--blue'}`} disabled={loading} tabIndex={dominant ? 0 : -1}>
+          <LogIn size={16} strokeWidth={1.75} /> {loading ? 'Signing in' : 'Sign in'}
+        </RippleButton>
+      </form>
+      <button type="button" className="login-panel__switch" onClick={onSwitch} tabIndex={dominant ? 0 : -1}>
+        {isStaff
+          ? 'Are you from the NMDPRA? Switch to regulatory access'
+          : 'Are you refinery staff? Switch to staff access'}
+      </button>
+    </RippleSurface>
   )
 }
 
-export default LoginPage
+export default function LoginPage() {
+  const [side, setSide] = useState<Side>('staff')
+
+  return (
+    <div className="login-page">
+      <div className="login-page__bg" aria-hidden="true">
+        <img src="/images/refinery-hero.jpg" alt="" onError={(event) => { event.currentTarget.style.display = 'none' }} />
+        <div className="login-page__overlay" />
+      </div>
+      <header className="login-page__top">
+        <Link to="/" className="login-page__brand">
+          <span className="lp-logo-mark"><Fuel size={18} strokeWidth={1.75} /></span>
+          <span>RSV</span>
+        </Link>
+        <Link to="/" className="login-page__back">
+          <ArrowLeft size={15} strokeWidth={1.75} /> Back to the site
+        </Link>
+      </header>
+      <main className="login-panels">
+        <LoginFormPanel side="staff" dominant={side === 'staff'} onSwitch={() => setSide('regulator')} />
+        <LoginFormPanel side="regulator" dominant={side === 'regulator'} onSwitch={() => setSide('staff')} />
+      </main>
+    </div>
+  )
+}
