@@ -115,6 +115,29 @@
 
 ### Project Status: PITCH READY
 
+## Frontend Redesign V3 (green and white)
+
+### Status: IN PROGRESS
+
+### Last Updated: 2026-10-15
+
+### Completed so far
+- Stage 1 committed: design tokens, Barlow typography, motion system and shared base styles
+- Stage 2 committed: RippleSurface, useRipple, RippleButton, IconCircle, GlassWidget, KPITile, StatusPill, Donut, useInView
+- Stage 3 committed: landing page with utility bar, hero, overlapping feature cards, about split, systems strip, marquee, steps, dashboard preview, CTA, footer
+- Stage 4 committed: dual glass panel login wired to AuthContext
+- Stage 5 in work: dashboard glass board with segmented navigation
+
+### Plan
+- Stage 1: green, white and blue design tokens, Barlow typography, motion system (ALLOWED THIS SESSION)
+- Stage 2: RippleSurface and shared glass widget primitives
+- Stage 3: landing page rebuild
+- Stage 4: dual-panel login rebuild
+- Stage 5: dashboard glass widget board
+- Stage 6: analytics, distribution, reports and integration restyle
+- Stage 7: regulatory portal restyle
+- Stage 8: accessibility and responsive polish
+
 ## Frontend Redesign Revert
 
 ### Status: COMPLETE

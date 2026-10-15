@@ -3,8 +3,8 @@ import type { ReactNode } from 'react'
 
 type IconCircleProps = {
   icon: LucideIcon
-  /** glass sits on photo/glass surfaces, light on white cards, blue on data accents */
-  tone?: 'glass' | 'light' | 'blue'
+  /** glass sits on photo/glass surfaces, light on white cards, blue/red/amber as accents */
+  tone?: 'glass' | 'light' | 'blue' | 'red' | 'amber'
   size?: number
   iconSize?: number
   children?: ReactNode

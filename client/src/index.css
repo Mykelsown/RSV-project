@@ -220,6 +220,8 @@ h1, h2, h3, .heading {
 .icon-circle--glass { background: rgba(60, 207, 130, 0.16); color: var(--green-400); }
 .icon-circle--light { background: var(--green-100); color: var(--green-600); }
 .icon-circle--blue { background: rgba(47, 124, 240, 0.16); color: var(--blue-300); }
+.icon-circle--red { background: rgba(217, 68, 82, 0.18); color: #ff9aa3; }
+.icon-circle--amber { background: rgba(224, 162, 31, 0.18); color: #f2c35c; }
 .icon-circle--light.icon-circle--blue, .icon-circle--blue.icon-circle--light-on-light { background: var(--blue-100); color: var(--blue-600); }
 
 /* Circular hairline action button on glass */
