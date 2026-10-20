@@ -7,6 +7,8 @@ import RippleSurface from './RippleSurface'
 type GlassWidgetProps = {
   icon: LucideIcon
   title: string
+  /** One-line description under the title in muted text */
+  subtitle?: string
   badge?: string | number | null
   /** Tints the badge chip for status colours */
   badgeTone?: 'green' | 'amber' | 'red' | 'blue'
@@ -24,7 +26,7 @@ type GlassWidgetProps = {
  * dashboard, the regulatory portal and the landing dashboard preview so the
  * surfaces feel like one product.
  */
-export default function GlassWidget({ icon, title, badge = null, badgeTone, action = 'none', actionLabel, onAction, className = '', style, children }: GlassWidgetProps) {
+export default function GlassWidget({ icon, title, badge = null, badgeTone, subtitle, action = 'none', actionLabel, onAction, className = '', style, children }: GlassWidgetProps) {
   const label = actionLabel || (action === 'add' ? `Add to ${title}` : `Open ${title}`)
   return (
     <RippleSurface className={`glass-widget glass-surface ${className}`.trim()} style={style}>
@@ -44,6 +46,7 @@ export default function GlassWidget({ icon, title, badge = null, badgeTone, acti
           </RippleButton>
         )}
       </header>
+      {subtitle && <p className="glass-widget__subtitle">{subtitle}</p>}
       <div className="glass-widget__body">{children}</div>
     </RippleSurface>
   )

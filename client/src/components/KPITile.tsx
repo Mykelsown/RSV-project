@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { prefersReducedMotion } from './useRipple'
+import { formatCompact, formatNumber, formatPercent } from './format'
 
 export type KPITone = 'green' | 'blue' | 'amber' | 'red' | 'white'
 
@@ -10,6 +11,10 @@ type KPITileProps = {
   unit?: string
   tone?: KPITone
   size?: 'md' | 'sm'
+  /** Render compact values (21.4M, 112.4K) with the full value as a title. */
+  compact?: boolean
+  /** Treat the value as a percentage (capped at 999%+). */
+  isPercent?: boolean
 }
 
 /* Metrics that already counted up this session never replay, even when the
@@ -46,7 +51,7 @@ function useCountValue(value: number | null, metric: string) {
   return display
 }
 
-export default function KPITile({ label, value, unit, tone = 'white', size = 'md' }: KPITileProps) {
+export default function KPITile({ label, value, unit, tone = 'white', size = 'md', compact = false, isPercent = false }: KPITileProps) {
   const display = useCountValue(value, label)
   const [pulsing, setPulsing] = useState(false)
   const previous = useRef<number | null>(null)
@@ -62,10 +67,20 @@ export default function KPITile({ label, value, unit, tone = 'white', size = 'md
     previous.current = value
   }, [value])
 
-  const formatted = value === null ? 'Not available' : new Intl.NumberFormat('en-NG', { maximumFractionDigits: 1 }).format(Math.round(display * 10) / 10)
+  const formatted = value === null
+    ? 'Not available'
+    : isPercent
+      ? formatPercent(display)
+      : compact
+        ? formatCompact(display)
+        : new Intl.NumberFormat('en-NG', { maximumFractionDigits: 1 }).format(Math.round(display * 10) / 10)
 
   return (
-    <section className={`kpi-tile kpi-tile--${tone} ${size === 'sm' ? 'kpi-tile--sm' : ''} ${pulsing ? 'is-pulsing' : ''}`.trim()}>
+    <section
+      className={`kpi-tile kpi-tile--${tone} ${size === 'sm' ? 'kpi-tile--sm' : ''} ${pulsing ? 'is-pulsing' : ''}`.trim()}
+      title={value === null ? undefined : formatNumber(value)}
+      aria-label={`${label}: ${value === null ? 'not available' : isPercent ? formatPercent(value) : formatCompact(value)}`}
+    >
       <span className="kpi-tile__label">{label}</span>
       <span className="kpi-tile__value">{formatted}</span>
       {unit && <span className="kpi-tile__unit">{unit}</span>}
