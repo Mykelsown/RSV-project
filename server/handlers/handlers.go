@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -44,7 +45,7 @@ func RegisterRoutes(r chi.Router) {
 		r.With(auth.RequireAuth, auth.RequireRole("operations_manager")).Post("/production-readings", handleProductionReading)
 		r.With(auth.RequireAuth, auth.RequireRole("operations_manager")).Post("/truck-loading", handleTruckLoading)
 		r.With(auth.RequireAuth).Get("/simulation/status", handleSimulationStatus)
-		r.With(auth.RequireAuth).Post("/simulation/control", handleSimulationControl)
+		r.With(auth.RequireAuth, auth.RequireRole("operations_manager")).Post("/simulation/control", handleSimulationControl)
 		r.With(auth.RequireAuth).Post("/ingest", handleIngest)
 
 		r.With(auth.RequireAuth).Get("/dashboard/today", handleDashboardToday)
@@ -152,7 +153,7 @@ func handleSimulationStatus(w http.ResponseWriter, r *http.Request) {
 		respondJSON(w, http.StatusOK, sim.Status())
 		return
 	}
-	respondJSON(w, http.StatusOK, map[string]any{"running": false, "mode": "off", "dev_mode": false, "stats": map[string]any{"events_total": 0, "crude_intake_today": 0, "production_updates_today": 0, "gantry_loads_today": 0}})
+	respondJSON(w, http.StatusOK, map[string]any{"running": false, "paused": false, "mode": "off", "dev_mode": false, "stats": map[string]any{"events_total": 0, "crude_intake_today": 0, "production_updates_today": 0, "gantry_loads_today": 0}})
 }
 
 func handleSimulationControl(w http.ResponseWriter, r *http.Request) {
@@ -174,11 +175,16 @@ func handleSimulationControl(w http.ResponseWriter, r *http.Request) {
 				respondError(w, http.StatusInternalServerError, err.Error())
 				return
 			}
+			// The paused flag never changes on close, but tabs watch
+			// sim_state to refresh their chips, so broadcast one anyway.
 		default:
 			respondError(w, http.StatusBadRequest, "unsupported action")
 			return
 		}
 		respondJSON(w, http.StatusOK, sim.Status())
+		if payload.Action == "close_day" {
+			simulation.BroadcastSimState()
+		}
 		return
 	}
 	respondError(w, http.StatusServiceUnavailable, "simulation engine not running")
@@ -672,6 +678,60 @@ func handleAcknowledgeAlert(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, map[string]string{"status": "acknowledged"})
 }
 
+// buildDashboardPayload assembles the dashboard_update body including the
+// live simulation counters so every tab stays in sync without polling.
+func buildDashboardPayload(ctx context.Context) map[string]any {
+	now := time.Now().UTC()
+	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+
+	crudeTotal, _ := repo.GetTodayCrudeIntakeTotal(ctx, startOfDay)
+	truckCount, _ := repo.GetTodayTruckLoadingCount(ctx, startOfDay)
+	alerts, _ := repo.GetUnacknowledgedAlerts(ctx)
+	readings, _ := repo.GetTodayProductionUnitReadings(ctx, startOfDay)
+	var actualOutput float64
+	for _, rd := range readings {
+		actualOutput += rd.ProductOutputLitres
+	}
+
+	commitmentStr := os.Getenv("DAILY_COMMITMENT_LITRES")
+	commitmentTarget, _ := strconv.ParseFloat(commitmentStr, 64)
+	if commitmentTarget == 0 {
+		commitmentTarget = 35000000
+	}
+
+	var fulfillment float64
+	if commitmentTarget > 0 {
+		fulfillment = (actualOutput / commitmentTarget) * 100
+	}
+	status := "SHORTFALL"
+	if fulfillment >= 95 {
+		status = "FULFILLED"
+	} else if fulfillment >= 75 {
+		status = "PARTIAL"
+	}
+
+	simBlock := map[string]any{"paused": false, "mode": "off", "dev_mode": false, "stats": map[string]any{}}
+	if sim := simulation.Get(); sim != nil {
+		simBlock = map[string]any{
+			"running":  sim.IsRunning(),
+			"paused":   sim.IsPaused(),
+			"mode":     sim.Mode(),
+			"dev_mode": sim.IsDevMode(),
+			"stats":    sim.StatsSnapshot(),
+		}
+	}
+
+	return map[string]any{
+		"crude_intake_barrels": crudeTotal,
+		"actual_output_litres": actualOutput,
+		"trucks_loaded":        truckCount,
+		"fulfillment_percent":  fulfillment,
+		"status":               status,
+		"alerts":               alerts,
+		"simulation":           simBlock,
+	}
+}
+
 // SSE Endpoint
 func handleSSE(w http.ResponseWriter, r *http.Request) {
 	tokenString := r.URL.Query().Get("token")
@@ -709,48 +769,8 @@ func handleSSE(w http.ResponseWriter, r *http.Request) {
 		sseMu.Lock()
 		delete(sseClients, clientChan)
 		sseMu.Unlock()
-	}()
-
-	// Send initial data
-	now := time.Now().UTC()
-	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-
-	crudeTotal, _ := repo.GetTodayCrudeIntakeTotal(r.Context(), startOfDay)
-	truckCount, _ := repo.GetTodayTruckLoadingCount(r.Context(), startOfDay)
-	alerts, _ := repo.GetUnacknowledgedAlerts(r.Context())
-	readings, _ := repo.GetTodayProductionUnitReadings(r.Context(), startOfDay)
-	var actualOutput float64
-	for _, rd := range readings {
-		actualOutput += rd.ProductOutputLitres
-	}
-
-	commitmentStr := os.Getenv("DAILY_COMMITMENT_LITRES")
-	commitmentTarget, _ := strconv.ParseFloat(commitmentStr, 64)
-	if commitmentTarget == 0 {
-		commitmentTarget = 35000000
-	}
-
-	var fulfillment float64
-	if commitmentTarget > 0 {
-		fulfillment = (actualOutput / commitmentTarget) * 100
-	}
-
-	status := "SHORTFALL"
-	if fulfillment >= 95 {
-		status = "FULFILLED"
-	} else if fulfillment >= 75 {
-		status = "PARTIAL"
-	}
-
-	dash := models.DashboardToday{
-		CrudeIntakeBarrels: crudeTotal,
-		ActualOutputLitres: actualOutput,
-		TrucksLoaded:       truckCount,
-		FulfillmentPercent: fulfillment,
-		Status:             status,
-		Alerts:             alerts,
-	}
-
+	}()	// Send initial data
+	dash := buildDashboardPayload(r.Context())
 	data, _ := json.Marshal(dash)
 	fmt.Fprintf(w, "event: dashboard_update\ndata: %s\n\n", data)
 	flusher.Flush()
@@ -765,38 +785,7 @@ func handleSSE(w http.ResponseWriter, r *http.Request) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			now := time.Now().UTC()
-			startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-
-			crudeTotal, _ := repo.GetTodayCrudeIntakeTotal(ctx, startOfDay)
-			truckCount, _ := repo.GetTodayTruckLoadingCount(ctx, startOfDay)
-			alerts, _ := repo.GetUnacknowledgedAlerts(ctx)
-			readings, _ := repo.GetTodayProductionUnitReadings(ctx, startOfDay)
-			var actualOutput float64
-			for _, rd := range readings {
-				actualOutput += rd.ProductOutputLitres
-			}
-
-			var fulfillment float64
-			if commitmentTarget > 0 {
-				fulfillment = (actualOutput / commitmentTarget) * 100
-			}
-
-			status := "SHORTFALL"
-			if fulfillment >= 95 {
-				status = "FULFILLED"
-			} else if fulfillment >= 75 {
-				status = "PARTIAL"
-			}
-
-			dash := models.DashboardToday{
-				CrudeIntakeBarrels: crudeTotal,
-				ActualOutputLitres: actualOutput,
-				TrucksLoaded:       truckCount,
-				FulfillmentPercent: fulfillment,
-				Status:             status,
-				Alerts:             alerts,
-			}
+			dash := buildDashboardPayload(ctx)
 			data, _ := json.Marshal(dash)
 			fmt.Fprintf(w, "event: dashboard_update\ndata: %s\n\n", data)
 			flusher.Flush()
@@ -807,7 +796,7 @@ func handleSSE(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func broadcastEvent(payload map[string]any) {
+func broadcastEvent(eventName string, payload map[string]any) {
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		return
@@ -822,15 +811,13 @@ func broadcastEvent(payload map[string]any) {
 
 	for _, client := range clients {
 		select {
-		case client <- fmt.Sprintf("event: sim_event\ndata: %s\n\n", payloadBytes):
+		case client <- fmt.Sprintf("event: %s\ndata: %s\n\n", eventName, payloadBytes):
 		default:
 		}
 	}
 }
 
 func init() {
-	simulation.SetBroadcaster(func(payload map[string]any) {
-		broadcastEvent(payload)
-	})
+	simulation.SetBroadcaster(broadcastEvent)
 	integration.RegisterDefaultSources()
 }
