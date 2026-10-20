@@ -53,8 +53,16 @@ var (
 	}
 
 	productTypes = []string{"Petrol", "Diesel", "Kerosene"}
+
+	truckLitresMin = 30000.0
+	truckLitresMax = 45000.0
 )
 
+// SeedData creates seven days of history shaped like live simulated days:
+// 300k to 450k barrels of crude, output that tracks a per-day performance
+// factor of the 35 million litre commitment, and 500 to 900 trucks of
+// 30,000 to 45,000 litres each. Two days are deliberately forced into
+// shortfall so the trend chart shows every status. Seeding is idempotent.
 func SeedData(ctx context.Context) error {
 	now := time.Now().UTC()
 
@@ -72,19 +80,30 @@ func SeedData(ctx context.Context) error {
 			continue
 		}
 
-		// Generate crude intake (2-4 tankers per day, 280k-420k barrels total)
-		numTankers := rand.Intn(3) + 2
-		totalBarrels := 0.0
-		for t := 0; t < numTankers; t++ {
-			barrels := float64(rand.Intn(60000) + 80000)
-			totalBarrels += barrels
+		// Plan the day like the live simulation does.
+		forcedShortfall := daysAgo == 5 || daysAgo == 2 // two forced shortfall days
+		var factor float64
+		if forcedShortfall {
+			factor = 0.62 // 60 to 70 percent fulfillment, a clear shortfall
+		} else if rand.Float64() < 0.25 {
+			factor = 0.55 + rand.Float64()*0.20
+		} else {
+			factor = 0.75 + rand.Float64()*0.30
+		}
+		crudeBudget := 300000.0 + rand.Float64()*150000.0
+		outputBudget := factor * 35000000.0
+		truckBudget := rand.Intn(401) + 500 // 500 to 900 trucks
 
+		// Crude intake: three to five tankers dividing the day budget.
+		numTankers := rand.Intn(3) + 3
+		perTanker := crudeBudget / float64(numTankers)
+		for t := 0; t < numTankers; t++ {
 			ci := models.CrudeIntake{
 				ID:                  uuid.New(),
-				RecordedAt:          startOfDay.Add(time.Duration(rand.Intn(12)) * time.Hour),
+				RecordedAt:          startOfDay.Add(time.Duration(rand.Intn(20)) * time.Hour),
 				TankerID:            tankerNames[rand.Intn(len(tankerNames))],
 				CrudeType:           crudeTypes[rand.Intn(len(crudeTypes))],
-				VolumeBarrels:       barrels,
+				VolumeBarrels:       perTanker * (0.9 + rand.Float64()*0.2),
 				SourceCountry:       sourceCountries[rand.Intn(len(sourceCountries))],
 				AllocationReference: fmt.Sprintf("ALLOC-%s-%d", date.Format("20060102"), t+1),
 				RecordedBy:          "Operations Team",
@@ -94,68 +113,43 @@ func SeedData(ctx context.Context) error {
 			}
 		}
 
-		// Generate production unit readings (3 units per day)
+		// Production unit readings: three units, each carrying a third of
+		// the day's output spread over several readings.
 		units := []string{"CDU-1", "CDU-2", "CDU-3"}
-		forcedShortfall := daysAgo == 5 || daysAgo == 2 // 3rd and 6th days in descending order: daysAgo=5 and 2
-		for idx, unit := range units {
-			crudProcessed := totalBarrels / 3.0
-			if forcedShortfall {
-				outputLitres := 21000000.0 / float64(len(units))
+		for _, unit := range units {
+			unitOutput := outputBudget / 3.0
+			for r := 0; r < 3; r++ {
+				yieldPct := 68.0 + rand.Float64()*8.0
+				laps := []float64{0.42, 0.33, 0.25}
 				pur := models.ProductionUnitReading{
 					ID:                    uuid.New(),
-					RecordedAt:            startOfDay.Add(time.Duration(6+idx*2) * time.Hour),
+					RecordedAt:            startOfDay.Add(time.Duration((4 + r*6 + rand.Intn(3)) % 24) * time.Hour),
 					UnitName:              unit,
-					CrudeProcessedBarrels: crudProcessed,
-					ProductOutputLitres:   outputLitres,
-					YieldPercentage:       60.0,
+					CrudeProcessedBarrels: (unitOutput * laps[r] / engine.LitresPerBarrel) / (yieldPct / 100.0),
+					ProductOutputLitres:   unitOutput * laps[r],
+					YieldPercentage:       yieldPct,
 					Status:                "RUNNING",
 				}
 				if err := repo.InsertProductionUnitReading(ctx, pur); err != nil {
 					return fmt.Errorf("insert production reading: %w", err)
 				}
-				continue
-			}
-
-			yieldPct := 68.0 + rand.Float64()*8.0 // 68-76%
-			outputLitres := crudProcessed * 158.987 * (yieldPct / 100.0)
-			pur := models.ProductionUnitReading{
-				ID:                    uuid.New(),
-				RecordedAt:            startOfDay.Add(time.Duration(6+idx*2) * time.Hour),
-				UnitName:              unit,
-				CrudeProcessedBarrels: crudProcessed,
-				ProductOutputLitres:   outputLitres,
-				YieldPercentage:       yieldPct,
-				Status:                "RUNNING",
-			}
-			if err := repo.InsertProductionUnitReading(ctx, pur); err != nil {
-				return fmt.Errorf("insert production reading: %w", err)
 			}
 		}
 
-		// Generate truck loading events (45-120 per day)
-		numTrucks := rand.Intn(76) + 45
-		for i := 0; i < numTrucks; i++ {
+		// Truck loading events: the daily truck budget of 30,000 to 45,000
+		// litre loads.
+		for i := 0; i < truckBudget; i++ {
 			dist := nigerianDistributors[rand.Intn(len(nigerianDistributors))]
 			product := productTypes[rand.Intn(len(productTypes))]
-			var volume float64
-			switch product {
-			case "Petrol":
-				volume = float64(rand.Intn(30000) + 33000) // 33k-63k litres
-			case "Diesel":
-				volume = float64(rand.Intn(20000) + 25000)
-			case "Kerosene":
-				volume = float64(rand.Intn(10000) + 15000)
-			}
-
 			tle := models.TruckLoadingEvent{
 				ID:                uuid.New(),
-				LoadedAt:          startOfDay.Add(time.Duration(rand.Intn(16) + 6) * time.Hour),
-				TruckID:           fmt.Sprintf("TRK-%d%03d", date.Month(), i+1),
+				LoadedAt:          startOfDay.Add(time.Duration(rand.Intn(22)) * time.Hour),
+				TruckID:           fmt.Sprintf("TRK-%d%04d", date.Month(), i+1),
 				DriverID:          fmt.Sprintf("DRV-%d%04d", date.Year()%100, rand.Intn(9999)+1),
 				DistributorID:     dist.ID,
 				DistributorName:   dist.Name,
 				ProductType:       product,
-				VolumeLitres:      volume,
+				VolumeLitres:      truckLitresMin + rand.Float64()*(truckLitresMax-truckLitresMin),
 				DestinationRegion: nigerianRegions[rand.Intn(len(nigerianRegions))],
 				GantryID:          fmt.Sprintf("GAN-%d", rand.Intn(4)+1),
 			}
@@ -163,8 +157,8 @@ func SeedData(ctx context.Context) error {
 				return fmt.Errorf("insert truck loading: %w", err)
 			}
 		}
-
-		fmt.Printf("Seeded %d tankers, 3 units, %d trucks for %s\n", numTankers, numTrucks, date.Format("2006-01-02"))
+		fmt.Printf("Seeded %d tankers, 3 units, %d trucks for %s (%.0f%% of the 35M target)\n",
+			numTankers, truckBudget, date.Format("2006-01-02"), factor*100)
 	}
 
 	// Run reconciliation for each seeded day
@@ -172,10 +166,12 @@ func SeedData(ctx context.Context) error {
 	for daysAgo := 7; daysAgo >= 1; daysAgo-- {
 		date := now.AddDate(0, 0, -daysAgo)
 		startOfDay := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.UTC)
-		_, err := engine.RunReconciliation(ctx, startOfDay)
-		if err != nil {
+		if _, err := engine.RunReconciliation(ctx, startOfDay); err != nil {
 			return fmt.Errorf("reconciliation for %s: %w", date.Format("2006-01-02"), err)
 		}
+		// Reconciliations exist now, so the loop above skips this day on
+		// the next call and running reconciliation again would fail the
+		// unique date constraint.
 		fmt.Printf("Reconciliation complete for %s\n", date.Format("2006-01-02"))
 	}
 

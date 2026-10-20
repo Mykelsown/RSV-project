@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	litresPerBarrel = 158.987
+	LitresPerBarrel = 158.987
 	yieldCoefficient = 0.72
 )
 
@@ -41,7 +41,7 @@ func RunReconciliation(ctx context.Context, date time.Time) (*models.DailyReconc
 	}
 
 	// Calculate expected output
-	expectedOutput := crudeTotal * litresPerBarrel * yieldCoefficient
+	expectedOutput := crudeTotal * LitresPerBarrel * yieldCoefficient
 
 	// Get truck loading count
 	truckCount, err := repo.GetTodayTruckLoadingCount(ctx, start)

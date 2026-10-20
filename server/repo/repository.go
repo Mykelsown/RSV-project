@@ -221,6 +221,107 @@ func AcknowledgeAlert(ctx context.Context, id uuid.UUID, by string) error {
 	return err
 }
 
+// CountCrudeIntakeForDay counts crude intake rows recorded on one UTC day.
+func CountCrudeIntakeForDay(ctx context.Context, start time.Time) (int, error) {
+	var count int
+	err := db.Pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM crude_intake WHERE recorded_at >= $1 AND recorded_at < $2`,
+		start, start.Add(24*time.Hour)).Scan(&count)
+	return count, err
+}
+
+// CountProductionReadingsForDay counts production readings for one UTC day.
+func CountProductionReadingsForDay(ctx context.Context, start time.Time) (int, error) {
+	var count int
+	err := db.Pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM production_unit_readings WHERE recorded_at >= $1 AND recorded_at < $2`,
+		start, start.Add(24*time.Hour)).Scan(&count)
+	return count, err
+}
+
+// CountTruckLoadingsForDay counts gantry loads for one UTC day.
+func CountTruckLoadingsForDay(ctx context.Context, start time.Time) (int, error) {
+	var count int
+	err := db.Pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM truck_loading_events WHERE loaded_at >= $1 AND loaded_at < $2`,
+		start, start.Add(24*time.Hour)).Scan(&count)
+	return count, err
+}
+
+// FindImpossibleUnreconciledDays returns dates that have no daily
+// reconciliation row and whose summed production output exceeds the
+// nameplate capacity check. Those days can never be reconciled sensibly, so
+// the startup repair deletes their raw rows.
+func FindImpossibleUnreconciledDays(ctx context.Context, maxOutputLitres float64) ([]time.Time, error) {
+	rows, err := db.Pool.Query(ctx, `
+		SELECT DATE(pr.recorded_at) AS day, COALESCE(SUM(pr.product_output_litres), 0)
+		FROM production_unit_readings pr
+		GROUP BY day
+		HAVING COALESCE(SUM(pr.product_output_litres), 0) > $1
+		ORDER BY day
+	`, maxOutputLitres)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var days []time.Time
+	for rows.Next() {
+		var day time.Time
+		var total float64
+		if err := rows.Scan(&day, &total); err != nil {
+			return nil, err
+		}
+		exists, err := ReconciliationExists(ctx, day)
+		if err != nil {
+			return nil, err
+		}
+		if exists {
+			continue
+		}
+		// Never touch dates that already carry a ledger entry.
+		var hasLedger bool
+		err = db.Pool.QueryRow(ctx,
+			`SELECT EXISTS(SELECT 1 FROM ledger_entries WHERE entry_date = $1)`, day).Scan(&hasLedger)
+		if err != nil {
+			return nil, err
+		}
+		if hasLedger {
+			continue
+		}
+		days = append(days, day)
+	}
+	return days, nil
+}
+
+// DeleteUnreconciledDayRows removes the crude intake, production readings
+// and gantry loads recorded on one day, inside a transaction.
+func DeleteUnreconciledDayRows(ctx context.Context, day time.Time) error {
+	tx, err := db.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	if _, err := tx.Exec(ctx, `DELETE FROM crude_intake WHERE recorded_at >= $1 AND recorded_at < $2`, day, day.Add(24*time.Hour)); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM production_unit_readings WHERE recorded_at >= $1 AND recorded_at < $2`, day, day.Add(24*time.Hour)); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM truck_loading_events WHERE loaded_at >= $1 AND loaded_at < $2`, day, day.Add(24*time.Hour)); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// CountDailyReconciliations returns the total number of reconciliation rows.
+func CountDailyReconciliations(ctx context.Context) (int, error) {
+	var count int
+	err := db.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM daily_reconciliations`).Scan(&count)
+	return count, err
+}
+
 func ReconciliationExists(ctx context.Context, date time.Time) (bool, error) {
 	start := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.UTC)
 	var exists bool
