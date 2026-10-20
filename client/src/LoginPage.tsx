@@ -123,8 +123,32 @@ export default function LoginPage() {
         </Link>
       </header>
       <main className="login-panels">
-        <LoginFormPanel side="staff" dominant={side === 'staff'} onSwitch={() => setSide('regulator')} />
-        <LoginFormPanel side="regulator" dominant={side === 'regulator'} onSwitch={() => setSide('staff')} />
+        {/* Two option switch bar: the mobile stacking route keeps both sides
+            reachable with one tap. */}
+        <div className="login-switchbar" role="tablist" aria-label="Access type">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={side === 'staff'}
+            className={side === 'staff' ? 'is-active' : ''}
+            onClick={() => setSide('staff')}
+          >
+            Refinery operations
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={side === 'regulator'}
+            className={side === 'regulator' ? 'is-active' : ''}
+            onClick={() => setSide('regulator')}
+          >
+            Regulatory body
+          </button>
+        </div>
+        <div className={`login-panels__track ${side === 'regulator' ? 'shows-regulator' : ''}`}>
+          <LoginFormPanel side="staff" dominant={side === 'staff'} onSwitch={() => setSide('regulator')} />
+          <LoginFormPanel side="regulator" dominant={side === 'regulator'} onSwitch={() => setSide('staff')} />
+        </div>
       </main>
     </div>
   )

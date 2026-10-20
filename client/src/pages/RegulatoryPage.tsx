@@ -8,6 +8,8 @@ import StatusPill from '../components/StatusPill'
 import LiveDot from '../components/LiveDot'
 import { useAuth } from '../auth/AuthContext'
 import { API_BASE } from '../App'
+import { SLOW_REFRESH_MS, REFRESH_AFTER_HIDDEN_MS } from '../config/refresh'
+import { formatNumber, formatCompact, formatPercent, formatLagosStamp } from '../components/format'
 
 interface Reconciliation {
   id: string
@@ -37,8 +39,7 @@ const getAuthHeaders = (token: string | null): Record<string, string> => {
   return { Authorization: `Bearer ${token}` }
 }
 
-const formatNumber = (num: number) => new Intl.NumberFormat('en-NG').format(Math.round(num))
-const formatDate = (dateStr: string) => new Date(dateStr).toLocaleDateString('en-NG', { day: '2-digit', month: 'short', year: 'numeric' })
+const formatDateLocal = (dateStr: string) => new Date(dateStr).toLocaleDateString('en-NG', { day: '2-digit', month: 'short', year: 'numeric' })
 const lagosDate = (date: Date) => date.toLocaleDateString('en-NG', { timeZone: 'Africa/Lagos', day: '2-digit', month: 'short', year: 'numeric' })
 const lagosClock = (date: Date) => date.toLocaleTimeString('en-NG', { timeZone: 'Africa/Lagos', hour: '2-digit', minute: '2-digit', hour12: true })
 
@@ -66,7 +67,39 @@ export default function RegulatoryPage() {
     if (summaryRes.ok) setSummary(await summaryRes.json())
   }, [token])
 
-  useEffect(() => { fetchData() }, [fetchData])
+  /* Slow data only changes when a day closes: one 30 minute interval,
+     paused while hidden, with an immediate catch-up after long hides. */
+  useEffect(() => {
+    if (!token) return
+    fetchData()
+    let timer = 0
+    const start = () => {
+      window.clearInterval(timer)
+      timer = window.setInterval(() => {
+        if (document.visibilityState === 'visible') fetchData()
+      }, SLOW_REFRESH_MS)
+    }
+    start()
+
+    let hiddenAt: number | null = null
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        hiddenAt = Date.now()
+        window.clearInterval(timer)
+      } else {
+        const hiddenFor = hiddenAt ? Date.now() - hiddenAt : 0
+        hiddenAt = null
+        start()
+        if (hiddenFor > REFRESH_AFTER_HIDDEN_MS) fetchData()
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+
+    return () => {
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [token, fetchData])
 
   const today = reconciliations[0]
   const todayStatus = today?.status || 'SHORTFALL'
@@ -137,9 +170,9 @@ export default function RegulatoryPage() {
             <GlassWidget icon={Fuel} title="Today at the refinery" className="w-wide reg-summary" >
               <div className="mini-tiles-4 reg-summary__cells">
                 <div className="stat-chip stat-chip--big">Today, WAT <strong>{lagosDate(nigeriaTime)}</strong></div>
-                <div className="stat-chip stat-chip--big">Commitment <strong>{formatNumber(35000000)} litres</strong></div>
-                <div className="stat-chip stat-chip--big">Actual output <strong>{formatNumber(todayActual)} litres</strong></div>
-                <div className="stat-chip stat-chip--big">Fulfillment <strong>{todayFulfillment.toFixed(1)}%</strong></div>
+                <div className="stat-chip stat-chip--big" title={`${formatNumber(35000000)} litres`}>Commitment <strong>35M litres</strong></div>
+                <div className="stat-chip stat-chip--big" title={`${formatNumber(todayActual)} litres`}>Actual output <strong>{formatCompact(todayActual)} litres</strong></div>
+                <div className="stat-chip stat-chip--big">Fulfillment <strong>{formatPercent(todayFulfillment)}</strong></div>
               </div>
               {today && <StatusPill status={todayStatus} />}
             </GlassWidget>
@@ -167,7 +200,7 @@ export default function RegulatoryPage() {
               {reconciliations.length === 0 && <p className="widget-empty">No reconciliation records available.</p>}
               {reconciliations.length > 0 && (
                 <div className="table-scroll">
-                  <table>
+                  <table className="stack-table">
                     <thead>
                       <tr>
                         <th>Date</th>
@@ -181,14 +214,14 @@ export default function RegulatoryPage() {
                     </thead>
                     <tbody>
                       {reconciliations.map((rec) => (
-                        <tr key={rec.id}>
-                          <td>{formatDate(rec.reconciliation_date)}</td>
-                          <td className="num">{formatNumber(rec.crude_intake_total_barrels)}</td>
-                          <td className="num">{formatNumber(rec.expected_output_litres)}</td>
-                          <td className="num">{formatNumber(rec.actual_output_litres)}</td>
-                          <td className="num">{rec.trucks_loaded}</td>
-                          <td className="num">{rec.fulfillment_percentage.toFixed(1)}%</td>
-                          <td><StatusPill status={rec.status} /></td>
+                        <tr key={rec.id} className="is-open">
+                          <td data-label="Date">{formatDateLocal(rec.reconciliation_date)}</td>
+                          <td data-label="Crude intake" className="num" title={formatNumber(rec.crude_intake_total_barrels)}>{formatCompact(rec.crude_intake_total_barrels)}</td>
+                          <td data-label="Expected" className="num" title={formatNumber(rec.expected_output_litres)}>{formatCompact(rec.expected_output_litres)}</td>
+                          <td data-label="Actual" className="num" title={formatNumber(rec.actual_output_litres)}>{formatCompact(rec.actual_output_litres)}</td>
+                          <td data-label="Trucks" className="num">{rec.trucks_loaded}</td>
+                          <td data-label="Fulfillment" className="num">{formatPercent(rec.fulfillment_percentage)}</td>
+                          <td data-label="Status"><StatusPill status={rec.status} /></td>
                         </tr>
                       ))}
                     </tbody>
@@ -206,18 +239,18 @@ export default function RegulatoryPage() {
               {ledgerEntries.length === 0 && <p className="widget-empty">No ledger entries found.</p>}
               {ledgerEntries.length > 0 && (
                 <div className="table-scroll">
-                  <table>
+                  <table className="stack-table">
                     <thead>
                       <tr><th>Date</th><th>Entry</th><th>Content hash</th><th>Previous hash</th><th>Written</th></tr>
                     </thead>
                     <tbody>
                       {ledgerEntries.map((entry) => (
-                        <tr key={entry.id}>
-                          <td>{formatDate(entry.entry_date)}</td>
-                          <td><span className="hash-chip">{entry.id.slice(0, 12)}</span>{entry.previous_hash === 'GENESIS' && <span className="genesis-chip">Genesis block</span>}</td>
-                          <td><span className="hash-chip">{entry.content_hash.slice(0, 12)}</span></td>
-                          <td><span className="hash-chip">{(entry.previous_hash === 'GENESIS' ? '' : entry.previous_hash).slice(0, 12) || 'GENESIS'}</span></td>
-                          <td>{new Date(entry.created_at).toLocaleString()}</td>
+                        <tr key={entry.id} className="is-open">
+                          <td data-label="Date">{formatDateLocal(entry.entry_date)}</td>
+                          <td data-label="Entry"><span className="hash-chip" title={entry.id}>{entry.id.slice(0, 12)}</span>{entry.previous_hash === 'GENESIS' && <span className="genesis-chip">Genesis block</span>}</td>
+                          <td data-label="Content hash"><span className="hash-chip" title={entry.content_hash}>{entry.content_hash.slice(0, 12)}</span></td>
+                          <td data-label="Previous hash"><span className="hash-chip" title={entry.previous_hash}>{(entry.previous_hash === 'GENESIS' ? '' : entry.previous_hash).slice(0, 12) || 'GENESIS'}</span></td>
+                          <td data-label="Written" className="stack-extra" title={new Date(entry.created_at).toLocaleString('en-NG', { timeZone: 'Africa/Lagos' })}>{formatLagosStamp(entry.created_at)} WAT</td>
                         </tr>
                       ))}
                     </tbody>

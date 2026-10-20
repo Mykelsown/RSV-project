@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { Suspense, lazy, useEffect, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   Mail, MapPin, Fuel, Menu, X, ShieldCheck, Activity, Landmark, Gauge, Factory,
@@ -16,6 +16,10 @@ import StatusPill from './components/StatusPill'
 import LiveDot from './components/LiveDot'
 import { useInView } from './components/useInView'
 import { useAuth } from './auth/AuthContext'
+
+/* The chart bundle loads only when the dashboard preview approaches the
+   viewport, and only once. */
+const GoogleChartCard = lazy(() => import('./components/GoogleChartCard'))
 
 /* GitHub brand mark (lucide-react no longer ships brand icons) */
 function GitHubMark({ size = 16 }: { size?: number }) {
@@ -194,6 +198,9 @@ export default function LandingPage() {
   const [scrolled, setScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const steps = useInView<HTMLDivElement>()
+  /* The dashboard preview (and its chart bundle) loads when near viewport. */
+  const preview = useInView<HTMLDivElement>({ rootMargin: '320px' })
+  const nearPreview = preview.inView
 
 
   useEffect(() => {
@@ -356,13 +363,17 @@ export default function LandingPage() {
           <Photo src={IMAGES.hero} alt="" className="lp-preview__img" />
           <div className="lp-preview__overlay" />
         </div>
-        <div className="lp-container lp-preview__inner">
+        <div className="lp-container lp-preview__inner" ref={preview.ref}>
           <Reveal>
             <h2>See the board the operations team sees.</h2>
             <p className="lp-preview__note">A static preview of the live dashboard with sample data.</p>
-            <div className="lp-preview__frame" aria-hidden="true">
-              <StaticBoard />
-            </div>
+            {nearPreview && (
+              <div className="lp-preview__frame" aria-hidden="true">
+                <Suspense fallback={<div className="lp-preview__fallback" role="status" aria-label="Loading the dashboard preview" /> }>
+                  <StaticBoard />
+                </Suspense>
+              </div>
+            )}
             <Link to="/login" className="lp-btn lp-btn--solid">Open the live demo</Link>
           </Reveal>
         </div>
@@ -402,9 +413,29 @@ export default function LandingPage() {
   )
 }
 
+/* Static preview sample data shaped like live days: fulfillment close to
+   the 35 million litre commitment with one shortfall day. */
+const PREVIEW_TREND = [
+  { day: '07 Oct', percent: 90.3 },
+  { day: '08 Oct', percent: 92.2 },
+  { day: '09 Oct', percent: 62.0 },
+  { day: '10 Oct', percent: 88.6 },
+  { day: '11 Oct', percent: 89.2 },
+  { day: '12 Oct', percent: 62.0 },
+  { day: '13 Oct', percent: 104.3 },
+]
+
 /* Non-interactive scaled preview of the real dashboard, same components. */
 function StaticBoard() {
-  const trend = [47, 51, 55, 49, 53, 58, 51.5].map((percent, index) => ({ percent, label: `0${index + 1}` }))
+  const trendRows: unknown[][] = [
+    ['Day', 'Fulfillment', { type: 'string', role: 'style' }, 'Target'],
+    ...PREVIEW_TREND.map((entry) => [
+      entry.day,
+      entry.percent,
+      `color: ${entry.percent >= 95 ? '#3ccf82' : entry.percent >= 75 ? '#e0a21f' : '#d94452'};`,
+      100,
+    ]),
+  ]
   return (
     <div className="lp-board" style={{ pointerEvents: 'none', userSelect: 'none' }}>
       <div className="lp-board__header glass-surface">
@@ -427,7 +458,7 @@ function StaticBoard() {
         </GlassWidget>
         <GlassWidget icon={Ship} title="Live activity" badge="3">
           {[
-            { icon: Ship, text: 'Tanker LK-114 arrived with 32,000 barrels' , time: '4 min ago' },
+            { icon: Ship, text: 'Terminal meter reading: +163 bbl Bonny Light via MT BENIN QUEEN', time: '4 min ago' },
             { icon: Truck, text: 'Zenith loaded 33,100L of petrol at gantry 2', time: '9 min ago' },
             { icon: Factory, text: 'Combined output reached 18,032,000L', time: '14 min ago' },
           ].map((event) => (
@@ -438,16 +469,23 @@ function StaticBoard() {
             </div>
           ))}
         </GlassWidget>
-        <GlassWidget icon={Activity} title="7-day trend" className="lp-widget-trend">
-          <div className="lp-widget-bars">
-            {trend.map((day) => (
-              <span key={day.label} className="lp-widget-bar">
-                <i style={{ height: `${day.percent * 1.8}%` }} />
-                <em>{day.label}</em>
-              </span>
-            ))}
-          </div>
-        </GlassWidget>
+        <GoogleChartCard
+          icon={Activity}
+          title="7 day fulfillment trend"
+          subtitle="Sample data: fulfillment against the 100 percent target"
+          ariaLabel="Static sample column chart of daily fulfillment for seven days with a dashed target line at 100 percent"
+          chartType="ComboChart"
+          data={trendRows}
+          className="lp-widget-trend"
+          options={{
+            series: {
+              0: { type: 'bars', color: '#3ccf82' },
+              1: { type: 'line', color: '#7dd3fc', lineDashStyle: [8, 6], pointSize: 0, lineWidth: 2 },
+            },
+            barGap: '26%',
+            vAxis: { viewWindow: { min: 0, max: 120 }, format: "#'%'", minValue: 0, maxValue: 120 },
+          } as Record<string, unknown>}
+        />
         <GlassWidget icon={Factory} title="Production units" className="lp-widget-trend">
           {['CDU-1', 'CDU-2', 'CDU-3'].map((unit, index) => {
             const yieldPercent = [62, 45, 38][index]

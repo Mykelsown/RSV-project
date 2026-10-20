@@ -35,7 +35,7 @@
   gap: 10px;
   color: var(--white);
   text-decoration: none;
-  font-family: 'Barlow Condensed', sans-serif;
+  font-family: var(--font-display);
   font-weight: 700;
   font-size: 22px;
 }
@@ -137,8 +137,13 @@
   color: var(--blue-300);
 }
 
+/* Editorial touch: serif italic panel headings, one per page */
 .login-panel h1 {
-  font-size: clamp(28px, 3vw, 38px);
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: clamp(30px, 3.2vw, 40px);
+  line-height: 1.12;
   color: var(--white);
 }
 
@@ -225,11 +230,120 @@
 
 .login-panel__switch:hover { color: var(--white); }
 
-/* Mobile: stack the panels */
+/* Brand accents: the staff panel leans green into sky, the regulator panel
+   leans sky into royal blue. Gradients only on small accents and buttons. */
+.login-panel--staff::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--brand-gradient-light);
+  border-radius: 22px 22px 0 0;
+  pointer-events: none;
+}
+
+.login-panel--regulator::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(135deg, #0ea5e9, #2f7cf0);
+  border-radius: 22px 22px 0 0;
+  pointer-events: none;
+}
+
+.login-panel--regulator {
+  background: rgba(6, 28, 52, 0.55);
+}
+
+@supports (backdrop-filter: blur(18px)) or (-webkit-backdrop-filter: blur(18px)) {
+  .login-panel--regulator {
+    background: rgba(14, 165, 233, 0.1);
+  }
+}
+
+.login-panel--regulator .glass-input {
+  border-color: rgba(125, 211, 252, 0.35);
+}
+
+/* Two option switch bar (mobile) */
+.login-switchbar {
+  display: none;
+  position: relative;
+  z-index: 2;
+  margin: 0 auto 18px;
+  padding: 5px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.login-switchbar button {
+  min-height: 44px;
+  padding: 8px 18px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.login-switchbar button.is-active {
+  background: rgba(125, 211, 252, 0.18);
+  color: var(--sky-300);
+}
+
+.login-panel__submit {
+  min-height: 44px;
+}
+
+.login-panel__submit:not(.login-panel__submit--blue) {
+  background: var(--brand-gradient-solid);
+}
+
+.login-panel__submit:not(.login-panel__submit--blue):hover {
+  background: linear-gradient(120deg, #1c9a56, #0ea5e9);
+}
+
+/* Mobile: stack the panels, active panel on top, height and opacity */
 @media (max-width: 860px) {
-  .login-panels { flex-direction: column; }
+  .login-page {
+    min-height: 100dvh;
+    padding-bottom: 24px;
+  }
+
+  .login-switchbar { display: flex; }
+
+  .login-panels__track {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    width: 100%;
+  }
+
+  .login-panels { flex-direction: column; width: 100%; gap: 0; }
+
   .login-panel { flex-basis: auto; min-height: 0; }
-  .login-panel.is-receded { opacity: 1; }
+
+  /* Only the active panel shows its form; heights move smoothly */
+  .login-panel.is-receded {
+    max-height: 96px;
+    overflow: hidden;
+    opacity: 0.85;
+    min-height: 0;
+  }
+
+  .login-panel.is-dominant { max-height: none; opacity: 1; }
+
+  .login-panel {
+    transition: max-height 420ms var(--ease-out), opacity 320ms var(--ease-out);
+  }
+
   .login-panel__form.is-hidden { display: none; }
   .login-panel__form { opacity: 1; }
   .login-panel__submit { align-self: stretch; justify-content: center; }
